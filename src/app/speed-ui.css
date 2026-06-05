@@ -1,0 +1,381 @@
+/*
+ * SECTION 6 — SPEED-THEMED UI
+ * app/speed-ui.css   (import in globals.css)
+ *
+ * Complete menu + HUD visual system.
+ * Design direction: Motorsport broadcast meets neon arcade.
+ * Every element should feel like it belongs on a racing dashboard.
+ */
+
+/* ── Menu root ────────────────────────────────────────────────────────── */
+.menu-root {
+  position: relative;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* Subtle radial vignette */
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, #0d0d18 0%, #060608 100%);
+}
+
+.menu-bg-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ── Menu content ─────────────────────────────────────────────────────── */
+.menu-content {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 1100px);
+  padding: var(--space-xl) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xl);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+.menu-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.menu-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--hud-size-xs);
+  letter-spacing: 0.4em;
+  color: var(--color-muted);
+  text-transform: uppercase;
+}
+
+.menu-title {
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 12vw, 9rem);
+  font-weight: 800;
+  line-height: 0.85;
+  letter-spacing: -0.02em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.menu-title-main {
+  color: var(--color-text);
+}
+
+.menu-title-sub {
+  color: var(--color-neon-green);
+  font-size: 0.45em;
+  letter-spacing: 0.25em;
+  font-weight: 700;
+}
+
+.menu-tagline {
+  font-family: var(--font-body);
+  font-size: var(--hud-size-sm);
+  color: var(--color-muted);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-top: var(--space-xs);
+}
+
+/* ── Cards grid ───────────────────────────────────────────────────────── */
+.menu-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: var(--space-lg);
+  width: 100%;
+}
+
+/* ── Game card button ─────────────────────────────────────────────────── */
+.game-card-btn {
+  all: unset;
+  cursor: pointer;
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--card-accent, var(--color-border));
+  border-radius: 12px;
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  text-align: left;
+  overflow: hidden;
+
+  /* Glow from accent color on hover */
+  transition:
+    transform 250ms var(--ease-out-expo),
+    box-shadow 250ms var(--ease-out-expo),
+    border-color 250ms;
+
+  /* Radial bleed from card accent */
+  background-image: radial-gradient(
+    ellipse 100% 80% at 80% 0%,
+    color-mix(in srgb, var(--card-accent, #fff) 8%, transparent),
+    transparent 70%
+  );
+}
+
+/* src/app/speed-ui.css — replace only these two rule blocks */
+
+.game-card-btn:hover,
+.game-card-btn:focus-visible {
+  /* mechanical scale — no springy bounce */
+  transform: translateY(-3px) scale(1.012);
+  box-shadow:
+    0 0 28px color-mix(in srgb, var(--card-accent, #fff) 18%, transparent),
+    0 12px 40px rgba(0 0 0 / 0.65);
+  transition:
+    transform 220ms cubic-bezier(0.4, 0, 0.6, 1),
+    box-shadow 220ms cubic-bezier(0.4, 0, 0.6, 1),
+    border-color 220ms;
+}
+
+.gc-episode {
+  font-family:    var(--font-body);
+  font-size:      var(--hud-size-xs);
+  letter-spacing: 0.35em;           /* wider — more prominent */
+  color:          var(--card-accent);
+  font-weight:    700;
+}
+
+/* Speed-line decoration (pseudo-element) */
+.game-card-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--card-accent, var(--color-border));
+  opacity: 0.8;
+}
+
+.gc-episode {
+  font-family: var(--font-body);
+  font-size: var(--hud-size-xs);
+  letter-spacing: 0.25em;
+  color: var(--card-accent);
+}
+
+.gc-symbol {
+  font-size: clamp(2rem, 5vw, 3rem);
+  color: var(--card-accent);
+  opacity: 0.9;
+  line-height: 1;
+}
+
+.gc-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 800;
+  line-height: 0.9;
+  color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+}
+
+.gc-title-sub {
+  color: var(--card-accent);
+}
+
+.gc-desc {
+  font-family: var(--font-body);
+  font-size: var(--hud-size-sm);
+  color: var(--color-muted);
+  line-height: 1.6;
+  flex: 1;
+}
+
+.gc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border);
+}
+
+.gc-diff {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.gc-diff-dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--card-accent);
+  transition: opacity 0.2s;
+}
+
+.gc-cta {
+  font-family: var(--font-body);
+  font-size: var(--hud-size-xs);
+  letter-spacing: 0.25em;
+  color: var(--card-accent);
+  transition: letter-spacing 250ms var(--ease-out-expo);
+}
+
+.game-card-btn:hover .gc-cta {
+  letter-spacing: 0.35em;
+}
+
+/* ── Menu hint ─────────────────────────────────────────────────────────── */
+.menu-hint {
+  font-family: var(--font-body);
+  font-size: var(--hud-size-xs);
+  letter-spacing: 0.15em;
+  color: rgba(240 236 224 / 0.25);
+  text-align: center;
+}
+
+/* ── In-game pause menu ────────────────────────────────────────────────── */
+.pause-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: var(--space-xl);
+  min-width: min(300px, 80vw);
+}
+
+.pause-title {
+  font-family: var(--font-display);
+  font-size: var(--hud-size-xl);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--color-neon-yellow);
+}
+
+.pause-btn {
+  all: unset;
+  cursor: pointer;
+  width: 100%;
+  padding: var(--space-sm) var(--space-lg);
+  font-family: var(--font-hud);
+  font-size: var(--hud-size-md);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  min-height: var(--touch-target);
+}
+
+.pause-btn:hover, .pause-btn:focus-visible {
+  background: var(--color-surface-2);
+  border-color: rgba(255 255 255 / 0.2);
+}
+
+.pause-btn.danger {
+  color: var(--color-neon-red);
+  border-color: rgba(255 45 85 / 0.3);
+}
+
+.pause-btn.danger:hover {
+  background: rgba(255 45 85 / 0.1);
+  border-color: rgba(255 45 85 / 0.5);
+}
+
+/* ── Victory / Game Over overlay ─────────────────────────────────────── */
+.result-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+  background: rgba(0 0 0 / 0.8);
+  backdrop-filter: blur(8px);
+  animation: fade-in 400ms var(--ease-out-expo);
+}
+
+.result-title {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 10vw, 7rem);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  animation: scale-in 500ms var(--ease-out-expo);
+}
+
+.result-title.victory { color: var(--color-neon-green); }
+.result-title.eliminated { color: var(--color-neon-red); }
+
+@keyframes scale-in {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.result-stats {
+  display: flex;
+  gap: var(--space-xl);
+  font-family: var(--font-hud);
+}
+
+.result-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.result-stat-value {
+  font-size: var(--hud-size-lg);
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.result-stat-label {
+  font-size: var(--hud-size-xs);
+  letter-spacing: 0.2em;
+  color: var(--color-muted);
+}
+
+/* ── Volume slider in settings ───────────────────────────────────────── */
+.volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  outline: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-neon-green);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}

@@ -1,0 +1,2104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Dalgona Candy — Survival Physics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;700;900&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+<style>
+/* ── Reset ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Design tokens ──────────────────────────────────────────── */
+:root {
+  --amber-light:    #f5c842;
+  --amber:          #e8a428;
+  --amber-dark:     #c07318;
+  --caramel:        #a0520c;
+  --burnt:          #6b2e06;
+  --cream:          rgba(255,248,210,0.9);
+  --bg-deep:        #080401;
+  --bg-warm:        #120800;
+  --glow-amber:     rgba(200,120,20,0.35);
+  --danger:         #ff4444;
+  --success-color:  #ffd93d;
+  --pink:           #FF0066;
+  --pink-shadow:    #b20047;
+  --teal:           #00FFB2;
+  --teal-shadow:    #00a87a;
+  --font-display:   'Barlow Condensed', 'Impact', sans-serif;
+  --font-mono:      'DM Mono', 'Courier New', monospace;
+  --ease-snap:      cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out:       cubic-bezier(0.16, 1, 0.3, 1);
+}
+html, body {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-deep);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+#root {
+  width: 100vw; height: 100dvh;
+  position: relative;
+  background: var(--bg-deep);
+  overflow: hidden;
+}
+canvas {
+  display: block;
+  touch-action: none;
+  cursor: crosshair;
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ── Cinematic Countdown Overlay ─────────────────────── */
+#cinematic-countdown {
+  position: fixed; inset: 0; z-index: 50;
+  display: none;
+  align-items: center; justify-content: center;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    rgba(0,0,0,0.0) 0%,
+    rgba(0,0,0,0.65) 70%,
+    rgba(0,0,0,0.92) 100%);
+}
+#cinematic-countdown.show { display: flex; }
+#cinematic-countdown .num {
+  font-family: var(--font-display);
+  font-size: clamp(180px, 38vw, 480px);
+  font-weight: 900;
+  color: #fff;
+  line-height: 0.85;
+  text-shadow:
+    0 0 80px rgba(255,80,0,0.9),
+    0 0 160px rgba(255,30,30,0.55),
+    0 8px 0 rgba(0,0,0,0.6);
+  animation: countPulse 1s var(--ease-snap) both;
+  filter: drop-shadow(0 6px 24px rgba(255,80,0,0.5));
+}
+#cinematic-countdown .num.go {
+  color: var(--teal);
+  text-shadow:
+    0 0 80px rgba(0,255,178,0.95),
+    0 0 200px rgba(0,255,178,0.6),
+    0 8px 0 rgba(0,0,0,0.5);
+}
+@keyframes countPulse {
+  0%   { transform: scale(2.6); opacity: 0; letter-spacing: 0.6em; }
+  35%  { transform: scale(1.0); opacity: 1; letter-spacing: 0; }
+  85%  { transform: scale(1.0); opacity: 1; }
+  100% { transform: scale(0.55); opacity: 0; }
+}
+
+/* ── Screen UI ───────────────────────────────────────────────── */
+.phase-screen {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  width: clamp(280px, 88vw, 460px);
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 100;
+}
+
+.phase-screen.active {
+  display: flex;
+  animation: screenIn 0.4s var(--ease-snap) both;
+}
+
+@keyframes screenIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.92) translateY(16px); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1)    translateY(0); }
+}
+
+.screen-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(10px, 2vh, 18px);
+  padding: clamp(24px, 4.5vh, 44px) clamp(24px, 5vw, 48px);
+  background:
+    linear-gradient(170deg,
+      rgba(28,13,2,0.97) 0%,
+      rgba(14,6,1,0.98) 60%,
+      rgba(8,4,1,0.99) 100%);
+  border: 1px solid rgba(220,145,30,0.18);
+  border-top: 2px solid rgba(245,200,66,0.35);
+  position: relative;
+  overflow: hidden;
+}
+
+.screen-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 90% 60% at 50% 0%,
+    rgba(200,120,20,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.screen-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 15%; right: 15%; height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%, rgba(245,200,66,0.55) 40%,
+    rgba(245,200,66,0.55) 60%, transparent 100%);
+}
+
+.corner-tick {
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: rgba(200,130,30,0.3);
+  border-style: solid;
+}
+.corner-tick.tl { top: 6px; left: 6px;  border-width: 1px 0 0 1px; }
+.corner-tick.tr { top: 6px; right: 6px; border-width: 1px 1px 0 0; }
+.corner-tick.bl { bottom: 6px; left: 6px;  border-width: 0 0 1px 1px; }
+.corner-tick.br { bottom: 6px; right: 6px; border-width: 0 1px 1px 0; }
+
+.episode-badge {
+  font-family: var(--font-mono);
+  font-size: clamp(8px, 1.4vw, 10px);
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(245,200,66,0.42);
+  padding: 3px 10px;
+  border: 1px solid rgba(245,200,66,0.16);
+  position: relative;
+  z-index: 1;
+}
+
+.shape-badge {
+  font-size: clamp(52px, 13vw, 100px);
+  color: var(--amber);
+  text-shadow: 0 0 30px rgba(245,200,66,0.55), 0 0 70px rgba(220,140,20,0.25);
+  line-height: 1;
+  filter: drop-shadow(0 3px 10px rgba(160,80,10,0.5));
+  position: relative;
+  z-index: 1;
+  animation: amberPulse 3s ease-in-out infinite;
+}
+
+@keyframes amberPulse {
+  0%,100% { text-shadow: 0 0 30px rgba(245,200,66,0.55), 0 0 70px rgba(220,140,20,0.25); }
+  50%     { text-shadow: 0 0 42px rgba(245,200,66,0.72), 0 0 90px rgba(220,140,20,0.35); }
+}
+
+.title-big {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 9vw, 76px);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1;
+  color: var(--amber);
+  text-shadow: 0 2px 0 var(--caramel), 0 0 40px rgba(245,200,66,0.22);
+  position: relative; z-index: 1;
+}
+
+.divider {
+  width: 55%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(200,130,30,0.35) 50%, transparent 100%);
+  margin: clamp(2px, 0.8vh, 6px) 0;
+  position: relative; z-index: 1;
+}
+
+.subtitle {
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 1.7vw, 12px);
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  color: rgba(245,220,140,0.5);
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.8;
+  position: relative; z-index: 1;
+}
+
+.countdown-num {
+  font-family: var(--font-display);
+  font-size: clamp(68px, 20vw, 148px);
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 50px rgba(255,255,255,0.45), 0 4px 0 rgba(0,0,0,0.5);
+  line-height: 1;
+  min-width: 2ch;
+  text-align: center;
+  position: relative; z-index: 1;
+}
+
+.btn-row {
+  display: flex;
+  gap: clamp(8px, 2vw, 16px);
+  margin-top: clamp(4px, 1vh, 12px);
+  position: relative; z-index: 1;
+}
+
+.btn {
+  font-family: var(--font-display);
+  font-size: clamp(12px, 2.2vw, 15px);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: clamp(12px, 2vh, 16px) clamp(24px, 5vw, 42px);
+  cursor: pointer;
+  border: none;
+  position: relative;
+  overflow: hidden;
+  transition: filter 0.12s, transform 0.1s, box-shadow 0.1s;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 45%;
+  background: rgba(255,255,255,0.13);
+  pointer-events: none;
+}
+
+.btn:hover  { filter: brightness(1.18); }
+.btn:active { transform: translateY(2px); filter: brightness(0.92); }
+
+.btn-green {
+  background: var(--teal);
+  color: #fff;
+  box-shadow: 0 4px 0 var(--teal-shadow), 0 6px 22px rgba(3,122,118,0.35);
+}
+
+.btn-pink {
+  background: var(--pink);
+  color: #fff;
+  box-shadow: 0 4px 0 var(--pink-shadow), 0 6px 22px rgba(237,27,118,0.35);
+}
+
+.result-title {
+  font-family: var(--font-display);
+  font-size: clamp(44px, 11vw, 92px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 50px currentColor, 0 3px 0 rgba(0,0,0,0.5);
+  line-height: 1;
+  position: relative; z-index: 1;
+}
+
+.result-sub {
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 1.6vw, 12px);
+  font-weight: 300;
+  color: rgba(245,220,140,0.6);
+  letter-spacing: 0.14em;
+  text-align: center;
+  position: relative; z-index: 1;
+}
+
+.hud-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  bottom: env(safe-area-inset-bottom, 0px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px max(clamp(14px, 3vw, 28px), env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(clamp(14px, 3vw, 28px), env(safe-area-inset-left, 0px));
+  background: linear-gradient(180deg, rgba(8,4,0,0) 0%, rgba(8,4,0,0.82) 40%, rgba(6,3,0,0.92) 100%);
+  border-top: 1px solid rgba(200,130,30,0.10);
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 40;
+}
+
+.hud-item {
+  border: 1px solid rgba(0,255,178,0.25);
+  border-radius: 3px;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hud-label {
+  font-family: var(--font-mono);
+  font-size: clamp(7px, 1.1vw, 9px);
+  letter-spacing: 0.28em;
+  color: rgba(245,200,66,0.38);
+  text-transform: uppercase;
+}
+
+.hud-value {
+  color: #00FFB2 !important;
+  font-family: var(--font-display);
+  font-size: clamp(14px, 2.8vw, 19px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.progress-track {
+  width: clamp(90px, 16vw, 150px);
+  height: 5px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--amber);
+  transition: width 0.15s linear, background 0.35s;
+  box-shadow: 0 0 7px rgba(245,200,66,0.45);
+}
+
+.integrity-warning {
+  position: fixed;
+  bottom: 22%;
+  left: 50%; transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: clamp(11px, 2.4vw, 17px);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: #ff7040;
+  text-shadow: 0 0 16px rgba(255,80,0,0.75);
+  pointer-events: none;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.28s;
+  text-transform: uppercase;
+  z-index: 40;
+}
+
+.needle-guide {
+  position: fixed;
+  top: 50%;
+  right: max(14px, env(safe-area-inset-right, 14px));
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-end;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s;
+  z-index: 40;
+}
+
+.guide-line {
+  font-family: var(--font-mono);
+  font-size: clamp(8px, 1.1vw, 10px);
+  letter-spacing: 0.12em;
+  color: rgba(245,200,66,0.38);
+  text-align: right;
+  font-weight: 300;
+}
+
+#vignette {
+  position: fixed; inset: 0; pointer-events: none; z-index: 5;
+  background: radial-gradient(ellipse 70% 60% at 50% 50%, transparent 40%, rgba(0,0,0,0) 100%);
+  transition: background 0.3s;
+}
+
+#back-btn {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  left: max(12px, env(safe-area-inset-left, 12px));
+  z-index: 110;
+  font-family: var(--font-display);
+  font-size: clamp(10px, 1.8vw, 12px);
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff;
+  background: rgba(220,20,100,0.88);
+  border: none;
+  padding: 9px 16px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 3px 0 var(--pink-shadow), 0 4px 16px rgba(237,27,118,0.28);
+  transition: filter 0.12s, transform 0.1s, box-shadow 0.1s;
+}
+
+#back-btn:hover { filter: brightness(1.18); }
+#back-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--pink-shadow), 0 2px 6px rgba(237,27,118,0.15);
+}
+</style>
+</head>
+<body>
+<div id="root"><canvas id="c"></canvas></div>
+<div id="vignette"></div>
+<div id="grain"></div>
+<div id="cinematic-countdown"><div class="num" id="cinematic-num">3</div></div>
+
+<div id="screen-intro" class="phase-screen">
+  <div class="screen-card">
+    <span class="corner-tick tl"></span>
+    <span class="corner-tick tr"></span>
+    <span class="corner-tick bl"></span>
+    <span class="corner-tick br"></span>
+    <div class="episode-badge">Episode 03 — Dalgona Candy</div>
+    <div id="shape-icon" class="shape-badge">▲</div>
+    <div class="title-big" id="shape-name-title">TRIANGLE</div>
+    <div class="divider"></div>
+    <div class="subtitle">Carve the shape. Don't break the candy.</div>
+    <div class="subtitle" style="color:rgba(245,220,140,0.3);font-size:clamp(8px,1.3vw,10px);">
+      Trace the dotted outline — move slowly
+    </div>
+    <div id="countdown-display" class="countdown-num" style="margin-top:clamp(6px,1.8vh,14px);">3</div>
+  </div>
+</div>
+
+<div id="screen-success" class="phase-screen">
+  <div class="screen-card">
+    <span class="corner-tick tl"></span>
+    <span class="corner-tick tr"></span>
+    <span class="corner-tick bl"></span>
+    <span class="corner-tick br"></span>
+    <div class="episode-badge">Episode 03 — Dalgona Candy</div>
+    <div class="result-title" style="color:var(--amber);">SUCCESS</div>
+    <div class="divider"></div>
+    <div class="result-sub" id="success-sub">Shape preserved · Integrity 100%</div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="restartGame()">PLAY AGAIN</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-eliminated" class="phase-screen">
+  <div class="screen-card">
+    <span class="corner-tick tl"></span>
+    <span class="corner-tick tr"></span>
+    <span class="corner-tick bl"></span>
+    <span class="corner-tick br"></span>
+    <div class="episode-badge">Episode 03 — Dalgona Candy</div>
+    <div class="result-title" style="color:var(--danger);">ELIMINATED</div>
+    <div class="divider"></div>
+    <div class="result-sub">The candy snapped.</div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="restartGame()">TRY AGAIN</button>
+    </div>
+  </div>
+</div>
+
+<div class="hud-bar" id="hud" style="display:none;">
+  <div class="hud-item">
+    <div class="hud-label">Integrity</div>
+    <div class="progress-track">
+      <div class="progress-fill" id="integrity-bar" style="width:100%;"></div>
+    </div>
+  </div>
+  <div class="hud-item" style="align-items:center;">
+    <div class="hud-label">Shape</div>
+    <div class="hud-value" id="hud-shape">TRIANGLE</div>
+  </div>
+  <div class="hud-item" style="align-items:flex-end;">
+    <div class="hud-label">Carved</div>
+    <div class="hud-value" id="hud-carved">0%</div>
+  </div>
+</div>
+
+<div class="integrity-warning" id="warning-text">⚠ EASE UP — STEADY YOUR HAND</div>
+
+<div class="needle-guide" id="needle-guide">
+  <div class="guide-line">Follow the</div>
+  <div class="guide-line">dotted line</div>
+  <div class="guide-line">— slowly</div>
+</div>
+
+<button id="back-btn">◀ MENU</button>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DALGONA CANDY — CINEMATIC PHYSICS SYSTEM
+// ═══════════════════════════════════════════════════════
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+// ── World dimensions ──────────────────────────────────
+const WORLD_W = 420;
+const WORLD_H = 780;
+const CANDY_W = 380;
+const CANDY_H = 380;
+const CANDY_X = (WORLD_W - CANDY_W) / 2;
+const CANDY_Y = (WORLD_H - CANDY_H) / 2 - 20;
+
+// ── Physics constants (REBALANCED — HARDER) ──────────
+const BASE_STRESS = 0.00120;
+const INSTABILITY_MULT = 0.018;
+const EDGE_TO_INTEGRITY = 0.48;
+const FRACTURE_THRESHOLD = 0.40;
+const CARVE_RADIUS = 14;
+const ON_EDGE_TOL = 22;
+const COMPLETION_WIN = 0.95;
+const SCRAPE_AUDIO_MS = 90;
+
+const GRID = 32;
+const CELL = CANDY_W / GRID;
+
+// ── State ─────────────────────────────────────────────
+let phase = 'intro';
+let candyIntegrity = 1.0;
+let edgeStress = 0.0;
+let completionRatio = 0.0;
+let fracturePoints = [];
+let carvedSegments = new Set();
+let shapePath = [];
+
+let edgeStressGrid = new Float32Array(GRID * GRID);
+let structuralStrength = new Float32Array(GRID * GRID).fill(1);
+let carvedCells = new Set();
+
+function cellIdx(gx, gy) { return gy * GRID + gx; }
+
+let shapeId = 'triangle';
+let scale = 1;
+
+let needleDown = false;
+let needleX = 0, needleY = 0; 
+let needlePrevX = 0, needlePrevY = 0;
+let needleVel = 0;
+let lastScrapeAudio = 0;
+let lastCarvedSegment = -1;
+let messageSent = false;
+
+const STAB_BUF_SIZE = 48;
+let stabBuf = new Float32Array(STAB_BUF_SIZE);
+let stabHead = 0, stabCount = 0;
+let stability = 1.0;
+
+let particles = [];
+let shakeX = 0, shakeY = 0, shakeIntensity = 0;
+let countdownVal = 3;
+let countdownTimer = 0;
+let vignetteRed = 0;
+let heartbeatPhase = 0;
+let candyOffscreen = null;
+let crackOffscreen = null;
+let frame = 0;
+let rafId = null;
+let needlePathHistory = [];
+const MAX_PATH_HISTORY = 150;
+
+// ── Left & Right soldier state ──────────────────────────
+let leftGuardX = 0;
+let leftGuardY = 0;
+let guardX = 0;
+let guardY = 0;
+
+// ── Bullet state ────────────────────────────────────────
+let bullets = [];
+
+// ── Elimination sequence timing ──────────────────────────
+let elimSequenceTimer = 0;
+let elimSequencePhase = 0; // 0=aim, 1=fire, 2=impact, 3=blood
+
+// ── Victory sequence timing ──────────────────────────────
+let victoryTimer = 0;
+let candySeparation = 0;
+let outerCandyPieces = [];
+
+let atmosphericDust = [];
+for (let i = 0; i < 40; i++) {
+  atmosphericDust.push({
+    x: Math.random() * WORLD_W,
+    y: Math.random() * WORLD_H,
+    r: Math.random() * 1.2 + 0.3,
+    vx: (Math.random() - 0.5) * 0.18,
+    vy: -Math.random() * 0.12 - 0.04,
+    alpha: Math.random() * 0.22 + 0.04,
+    phase: Math.random() * Math.PI * 2,
+  });
+}
+
+// ── Audio ──────────────────────────────────────────────
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTick(freq, dur = 0.05, vol = 0.15) {
+  try {
+    const ac = getAudio();
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.connect(g); g.connect(ac.destination);
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(vol, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + dur);
+    osc.start(); osc.stop(ac.currentTime + dur);
+  } catch(e){}
+}
+function playScrape(intensity) {
+  try {
+    const ac = getAudio();
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.08, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.3;
+    const src = ac.createBufferSource();
+    const g = ac.createGain();
+    const filt = ac.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.frequency.value = 2000 + intensity * 3000;
+    filt.Q.value = 2;
+    src.buffer = buf; src.connect(filt); filt.connect(g); g.connect(ac.destination);
+    g.gain.setValueAtTime(intensity * 0.25, ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.08);
+    src.start(); src.stop(ac.currentTime + 0.08);
+  } catch(e){}
+}
+function playMicrocrack(severity) {
+  try {
+    const ac = getAudio();
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.12, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / ac.sampleRate;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 40) * severity;
+    }
+    const src = ac.createBufferSource();
+    const g = ac.createGain();
+    const filt = ac.createBiquadFilter();
+    filt.type = 'highpass'; filt.frequency.value = 1500;
+    src.buffer = buf; src.connect(filt); filt.connect(g); g.connect(ac.destination);
+    g.gain.value = 0.4;
+    src.start();
+  } catch(e){}
+}
+function playSnap() {
+  try {
+    const ac = getAudio();
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.4, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / ac.sampleRate;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 18);
+    }
+    const src = ac.createBufferSource();
+    const g = ac.createGain(); g.gain.value = 0.7;
+    src.buffer = buf; src.connect(g); g.connect(ac.destination);
+    src.start();
+  } catch(e){}
+}
+
+const SHAPES = {
+  // Static shapes — must match every entry in pickShape()'s pool exactly.
+  // Root cause of the prior crash: pickShape returned 'circle' and 'star'
+  // but neither key existed here, so SHAPES[id] was undefined, and calling
+  // undefined() threw "SHAPES[id] is not a function".
+  triangle: () => [{nx:0.50,ny:0.10},{nx:0.88,ny:0.85},{nx:0.12,ny:0.85}],
+
+  // 24-sided polygon produces a smooth circle at game canvas resolution.
+  circle: () => {
+    const pts = [];
+    for (let j = 0; j < 24; j++) {
+      pts.push({
+        nx: 0.5 + Math.cos((j / 24) * Math.PI * 2 - Math.PI / 2) * 0.42,
+        ny: 0.5 + Math.sin((j / 24) * Math.PI * 2 - Math.PI / 2) * 0.42
+      });
+    }
+    return pts;
+  },
+
+  // Classic 5-pointed star matching the Squid Game dalgona prop.
+  star: () => {
+    const pts = [];
+    for (let j = 0; j < 10; j++) {
+      const r = j % 2 === 0 ? 0.44 : 0.20;
+      pts.push({
+        nx: 0.5 + Math.cos((j / 10) * Math.PI * 2 - Math.PI / 2) * r,
+        ny: 0.5 + Math.sin((j / 10) * Math.PI * 2 - Math.PI / 2) * r
+      });
+    }
+    return pts;
+  },
+
+  umbrella: () => [
+    {nx:0.50,ny:0.90},{nx:0.50,ny:0.76},{nx:0.44,ny:0.76},{nx:0.44,ny:0.70},{nx:0.10,ny:0.70},{nx:0.10,ny:0.58},
+    {nx:0.16,ny:0.44},{nx:0.26,ny:0.34},{nx:0.38,ny:0.28},{nx:0.50,ny:0.26},{nx:0.62,ny:0.28},{nx:0.74,ny:0.34},
+    {nx:0.84,ny:0.44},{nx:0.90,ny:0.58},{nx:0.90,ny:0.70},{nx:0.56,ny:0.70},{nx:0.56,ny:0.76},{nx:0.50,ny:0.76}
+  ]
+};
+const SHAPE_ICONS = { triangle:'▲', circle:'⬤', star:'★', umbrella:'☂' };
+const SHAPE_NAMES = { triangle:'TRIANGLE', circle:'CIRCLE', star:'STAR', umbrella:'UMBRELLA' };
+
+// Procedurally generate 50+ Polygons and Stars!
+for(let sides=4; sides<=28; sides++) {
+  const id = `polygon_${sides}`;
+  SHAPES[id] = () => {
+    const pts = [];
+    for(let j=0; j<sides; j++) pts.push({nx: 0.5+Math.cos((j/sides)*Math.PI*2 - Math.PI/2)*0.4, ny: 0.5+Math.sin((j/sides)*Math.PI*2 - Math.PI/2)*0.4});
+    return pts;
+  };
+  SHAPE_ICONS[id] = '⬟'; SHAPE_NAMES[id] = `${sides}-SIDED POLYGON`;
+}
+for(let points=4; points<=30; points++) {
+  const id = `star_${points}`;
+  SHAPES[id] = () => {
+    const pts = [];
+    for(let j=0; j<points*2; j++) {
+       const r = j%2===0 ? 0.45 : 0.22;
+       pts.push({nx: 0.5+Math.cos((j/(points*2))*Math.PI*2 - Math.PI/2)*r, ny: 0.5+Math.sin((j/(points*2))*Math.PI*2 - Math.PI/2)*r});
+    }
+    return pts;
+  };
+  SHAPE_ICONS[id] = '★'; SHAPE_NAMES[id] = `${points}-POINT STAR`;
+}
+
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function lerp(a,b,t){return a+(b-a)*clamp(t,0,1);}
+function dist(a,b){const dx=a.x-b.x,dy=a.y-b.y;return Math.sqrt(dx*dx+dy*dy);}
+
+function normToCanvas(n){
+  return {
+    x: (CANDY_X + n.nx * CANDY_W) * scale,
+    y: (CANDY_Y + n.ny * CANDY_H) * scale
+  };
+}
+
+function buildShapePath(id){
+  return SHAPES[id]().map(normToCanvas);
+}
+
+function distToSegment(p, a, b){
+  const dx=b.x-a.x, dy=b.y-a.y;
+  const lenSq=dx*dx+dy*dy;
+  if(lenSq===0) return dist(p,a);
+  const t=clamp(((p.x-a.x)*dx+(p.y-a.y)*dy)/lenSq,0,1);
+  return dist(p,{x:a.x+t*dx,y:a.y+t*dy});
+}
+
+function pushStab(mag){
+  stabBuf[stabHead]=mag;
+  stabHead=(stabHead+1)%STAB_BUF_SIZE;
+  if(stabCount<STAB_BUF_SIZE) stabCount++;
+}
+
+function computeStability(){
+  if(stabCount<3){stability=1;return;}
+  let sum=0, n=Math.min(stabCount,32);
+  for(let i=0;i<n;i++) sum+=stabBuf[(stabHead-1-i+STAB_BUF_SIZE)%STAB_BUF_SIZE];
+  const mean=sum/n;
+  let varSum=0;
+  for(let i=0;i<n;i++){
+    const d=stabBuf[(stabHead-1-i+STAB_BUF_SIZE)%STAB_BUF_SIZE]-mean;
+    varSum+=d*d;
+  }
+  stability = 1/(1+(varSum/n)/120);
+}
+
+function createBullet(fromX, fromY, toX, toY) {
+  const angle = Math.atan2(toY - fromY, toX - fromX);
+  const speed = 18 * scale;
+  bullets.push({
+    x: fromX,
+    y: fromY,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    life: 1,
+    size: 4 * scale
+  });
+}
+
+function updateBullets() {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.vx;
+    b.y += b.vy;
+    b.life -= 0.015;
+    if (b.life <= 0) bullets.splice(i, 1);
+  }
+}
+
+// ── Canvas sizing — FULLSCREEN, NO BLACK BARS ─────────
+function resize(){
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  const fitScale = Math.max(vw / WORLD_W, vh / WORLD_H);
+  scale = fitScale * dpr;
+
+  canvas.style.width  = vw + 'px';
+  canvas.style.height = vh + 'px';
+  canvas.width  = Math.round(vw * dpr);
+  canvas.height = Math.round(vh * dpr);
+
+  window.__dalgonaOffsetX = (canvas.width  - WORLD_W * scale) / 2;
+  window.__dalgonaOffsetY = (canvas.height - WORLD_H * scale) / 2;
+
+  if (shapeId) shapePath = buildShapePath(shapeId);
+  rebuildOffscreens();
+}
+
+function rebuildOffscreens(){
+  candyOffscreen = document.createElement('canvas');
+  candyOffscreen.width = Math.round(CANDY_W*scale);
+  candyOffscreen.height = Math.round(CANDY_H*scale);
+  const c2d = candyOffscreen.getContext('2d');
+  drawCandyBase(c2d, CANDY_W*scale, CANDY_H*scale);
+
+  crackOffscreen = document.createElement('canvas');
+  crackOffscreen.width = canvas.width;
+  crackOffscreen.height = canvas.height;
+}
+
+function drawCandyBase(c2d, W, H){
+  const grad = c2d.createLinearGradient(W*0.08, H*0.02, W*0.92, H*0.98);
+  grad.addColorStop(0,    '#f0c040');   
+  grad.addColorStop(0.15, '#e8a428');   
+  grad.addColorStop(0.38, '#d08418');   
+  grad.addColorStop(0.62, '#b86414');   
+  grad.addColorStop(0.82, '#a05210');   
+  grad.addColorStop(1,    '#804008');   
+  c2d.fillStyle = grad;
+  c2d.fillRect(0, 0, W, H);
+
+  const spec = c2d.createRadialGradient(W*0.3, H*0.22, 0, W*0.3, H*0.25, W*0.42);
+  spec.addColorStop(0,   'rgba(255,252,200,0.38)');
+  spec.addColorStop(0.35,'rgba(255,245,170,0.18)');
+  spec.addColorStop(0.7, 'rgba(255,235,140,0.06)');
+  spec.addColorStop(1,   'rgba(255,220,100,0)');
+  c2d.fillStyle = spec;
+  c2d.fillRect(0, 0, W, H);
+
+  const warmGlow = c2d.createRadialGradient(W*0.74, H*0.76, 0, W*0.74, H*0.76, W*0.38);
+  warmGlow.addColorStop(0,   'rgba(255,190,60,0.14)');
+  warmGlow.addColorStop(0.5, 'rgba(255,160,30,0.07)');
+  warmGlow.addColorStop(1,   'rgba(0,0,0,0)');
+  c2d.fillStyle = warmGlow;
+  c2d.fillRect(0, 0, W, H);
+
+  const edgeGrad = c2d.createRadialGradient(W/2, H/2, W*0.22, W/2, H/2, W*0.74);
+  edgeGrad.addColorStop(0,   'rgba(0,0,0,0)');
+  edgeGrad.addColorStop(0.65,'rgba(0,0,0,0)');
+  edgeGrad.addColorStop(1,   'rgba(40,12,0,0.28)');
+  c2d.fillStyle = edgeGrad;
+  c2d.fillRect(0, 0, W, H);
+
+  for (let i = 0; i < 700; i++) {
+    const tx = Math.random() * W;
+    const ty = Math.random() * H;
+    const ts = Math.random() * 1.8 + 0.3;
+    const alpha = Math.random() * 0.10 + 0.01;
+    if (Math.random() > 0.55) {
+      c2d.fillStyle = `rgba(255,248,180,${alpha})`;
+    } else {
+      c2d.fillStyle = `rgba(80,40,5,${alpha * 0.6})`;
+    }
+    c2d.fillRect(tx, ty, ts, ts);
+  }
+
+  for (let i = 0; i < 18; i++) {
+    const x1 = Math.random() * W;
+    const y1 = Math.random() * H;
+    const angle = Math.random() * Math.PI;
+    const len = 6 + Math.random() * 30;
+    c2d.beginPath();
+    c2d.moveTo(x1, y1);
+    c2d.lineTo(x1 + Math.cos(angle)*len, y1 + Math.sin(angle)*len);
+    c2d.strokeStyle = `rgba(180,140,40,${Math.random()*0.055 + 0.01})`;
+    c2d.lineWidth = 0.5;
+    c2d.stroke();
+  }
+
+  for (let i = 0; i < 5; i++) {
+    const bandY = H * (0.15 + i * 0.17);
+    c2d.fillStyle = `rgba(255,220,100,${0.025 + Math.random()*0.015})`;
+    c2d.fillRect(0, bandY, W, 1 + Math.random() * 1.5);
+  }
+}
+
+function emitDust(x,y,count=4){
+  for(let i=0;i<count;i++){
+    const a=Math.random()*Math.PI*2;
+    const spd=Math.random()*2+0.5;
+    particles.push({
+      x,y, vx:Math.cos(a)*spd, vy:Math.sin(a)*spd-1,
+      life:1, decay:0.03+Math.random()*0.02,
+      r:220, g:180, b:100, size:Math.random()*3+1
+    });
+  }
+}
+
+function emitCrackSpark(x,y,severity){
+  for(let i=0;i<Math.round(8*severity);i++){
+    const a=Math.random()*Math.PI*2;
+    const spd=Math.random()*4+1;
+    particles.push({
+      x,y, vx:Math.cos(a)*spd, vy:Math.sin(a)*spd-2,
+      life:1, decay:0.05+Math.random()*0.04,
+      r:255, g:Math.floor(150+Math.random()*80), b:50,
+      size:Math.random()*2+0.5
+    });
+  }
+}
+
+function pickShape(exclude){
+  const all=['triangle','circle','star','umbrella'];
+  const pool=exclude?all.filter(s=>s!==exclude):all;
+  return pool[Math.floor(Math.random()*pool.length)];
+}
+
+function initGame(id){
+  shapeId = id || pickShape();
+  shapePath = buildShapePath(shapeId);
+  candyIntegrity = 1.0;
+  edgeStress = 0.0;
+  completionRatio = 0.0;
+  fracturePoints = [];
+  carvedSegments = new Set();
+  particles = [];
+  edgeStressGrid = new Float32Array(GRID * GRID);
+  structuralStrength = new Float32Array(GRID * GRID).fill(1);
+  carvedCells = new Set();
+  needleDown = false;
+  needleVel = 0;
+  stabCount = 0; stabHead = 0;
+  stability = 1;
+  shakeIntensity = 0;
+  vignetteRed = 0;
+  frame = 0;
+  lastCarvedSegment = -1;
+  messageSent = false;
+  bullets = [];
+
+  // Reset sequence timers
+  elimSequenceTimer = 0;
+  elimSequencePhase = 0;
+  victoryTimer = 0;
+  candySeparation = 0;
+  outerCandyPieces = [];
+
+  rebuildOffscreens();
+}
+
+// ── Phase transitions ─────────────────────────────────
+function setPhase(p){
+  phase = p;
+  document.getElementById('screen-intro').classList.remove('active');
+  document.getElementById('screen-success').classList.remove('active');
+  document.getElementById('screen-eliminated').classList.remove('active');
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('needle-guide').style.opacity = '0';
+  document.getElementById('cinematic-countdown').classList.remove('show');
+
+  if (p === 'intro') {
+    document.getElementById('hud').style.display = 'flex';
+    document.getElementById('hud-shape').textContent = SHAPE_NAMES[shapeId];
+    countdownVal = 3; countdownTimer = 0;
+    showCinematicCount(3);
+    phase = 'countdown';
+  } else if (p === 'playing') {
+    document.getElementById('hud').style.display = 'flex';
+    document.getElementById('hud-shape').textContent = SHAPE_NAMES[shapeId];
+    document.getElementById('needle-guide').style.opacity = '1';
+    setTimeout(() => {
+      const ng = document.getElementById('needle-guide');
+      if (ng) ng.style.opacity = '0';
+    }, 3000);
+  } else if (p === 'success') {
+    document.getElementById('screen-success').classList.add('active');
+    document.getElementById('success-sub').textContent =
+      `Shape preserved · Integrity ${Math.round(candyIntegrity * 100)}%`;
+    sendGameResult({ type: 'DALGONA_SUCCESS' });
+  } else if (p === 'eliminated') {
+    document.getElementById('screen-eliminated').classList.add('active');
+    sendGameResult({ type: 'DALGONA_ELIMINATED', reason: 'candy-snapped' });
+  }
+}
+
+function showCinematicCount(n) {
+  const wrap = document.getElementById('cinematic-countdown');
+  const num  = document.getElementById('cinematic-num');
+  if (!wrap || !num) return;
+  wrap.classList.add('show');
+  num.classList.remove('go');
+  num.textContent = String(n);
+  num.style.animation = 'none';
+  void num.offsetWidth;
+  num.style.animation = '';
+  if (n > 0) playTick(440 + (3 - n) * 110, 0.12, 0.35);
+}
+
+function showCinematicGo() {
+  const wrap = document.getElementById('cinematic-countdown');
+  const num  = document.getElementById('cinematic-num');
+  if (!wrap || !num) return;
+  wrap.classList.add('show');
+  num.classList.add('go');
+  num.textContent = 'GO!';
+  num.style.animation = 'none';
+  void num.offsetWidth;
+  num.style.animation = '';
+  playTick(880, 0.25, 0.45);
+  playTick(1320, 0.20, 0.35);
+  setTimeout(() => wrap.classList.remove('show'), 950);
+}
+
+function restartGame(){
+  const prev=shapeId;
+  initGame(pickShape(prev));
+  setPhase('intro');
+}
+
+function sendBridgeMessage(msg){
+  try{ window.parent.postMessage(msg,'*'); }catch(e){}
+}
+function sendGameResult(msg){
+  if(messageSent) return;
+  messageSent=true;
+  sendBridgeMessage(msg);
+}
+
+// Fixed coordinate math
+function toCanvas(clientX, clientY) {
+  const rect  = canvas.getBoundingClientRect();
+  const ratio = canvas.width / rect.width;
+  return {
+    x: (clientX - rect.left) * ratio,
+    y: (clientY - rect.top)  * ratio
+  };
+}
+
+function distToOutline(p, path){
+  let minD = Infinity;
+  for(let i=0; i<path.length; i++){
+    minD = Math.min(minD, distToSegment(p, path[i], path[(i+1)%path.length]));
+  }
+  return minD;
+}
+
+function worldToGrid(bx, by) {
+  const gx = Math.floor((bx / scale - CANDY_X) / CELL);
+  const gy = Math.floor((by / scale - CANDY_Y) / CELL);
+  return {
+    gx: Math.max(0, Math.min(GRID - 1, gx)),
+    gy: Math.max(0, Math.min(GRID - 1, gy))
+  };
+}
+
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  
+  const rawPos = toCanvas(e.clientX, e.clientY);
+  const ox = window.__dalgonaOffsetX || 0;
+  const oy = window.__dalgonaOffsetY || 0;
+  
+  needleDown = true;
+  needleX = rawPos.x - ox; 
+  needleY = rawPos.y - oy;
+  needlePrevX = needleX; 
+  needlePrevY = needleY;
+  needleVel = 0;
+  
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  getAudio();
+  // No fail on initial click — player positions the needle freely.
+  // Path-tolerance validation only fires during active carving (pointermove).
+}, {passive:false});
+
+canvas.addEventListener('pointermove', e => {
+  e.preventDefault();
+  const rawPos = toCanvas(e.clientX, e.clientY);
+  const ox = window.__dalgonaOffsetX || 0;
+  const oy = window.__dalgonaOffsetY || 0;
+
+  needlePrevX = needleX; 
+  needlePrevY = needleY;
+  needleX = rawPos.x - ox; 
+  needleY = rawPos.y - oy;
+  
+  const dx = needleX - needlePrevX;
+  const dy = needleY - needlePrevY;
+  const mag = Math.sqrt(dx * dx + dy * dy);
+  needleVel = mag;
+  pushStab(mag);
+
+  if(needleDown && phase === 'playing') processCarve();
+}, {passive:false});
+
+canvas.addEventListener('pointerup', e=>{ needleDown=false; needleVel=0; });
+canvas.addEventListener('pointercancel', e=>{ needleDown=false; });
+
+function processCarve(){
+  const pos = {x: needleX, y: needleY};
+  const worldX = needleX / scale;
+  const worldY = needleY / scale;
+  
+  // Track needle path for smooth carving visuals
+  if (needleDown) {
+    needlePathHistory.push({x: needleX, y: needleY, time: performance.now()});
+    if (needlePathHistory.length > MAX_PATH_HISTORY) needlePathHistory.shift();
+  } else {
+    needlePathHistory = [];
+  }
+  
+  const SLAB_MARGIN = 6;
+  const inSlab = (
+    worldX >= CANDY_X - SLAB_MARGIN && worldX <= CANDY_X + CANDY_W + SLAB_MARGIN &&
+    worldY >= CANDY_Y - SLAB_MARGIN && worldY <= CANDY_Y + CANDY_H + SLAB_MARGIN
+  );
+  
+  // Physically left the candy entirely — immediate fail.
+  if(!inSlab){ triggerInstantFail('needle-left-slab'); return; }
+
+  const edgeDist = distToOutline(pos, shapePath);
+  const onEdge = edgeDist < ON_EDGE_TOL * scale;
+
+  // Off the trace line: apply heavy progressive damage instead of instant kill.
+  // Deep deviations drain integrity fast; small drifts just raise stress.
+  if(!onEdge){
+    const excess = clamp((edgeDist - ON_EDGE_TOL * scale) / (scale * 30), 0, 1);
+    const { gx: ogx, gy: ogy } = worldToGrid(needleX, needleY);
+    const oidx = cellIdx(ogx, ogy);
+    edgeStressGrid[oidx] = Math.min(1, edgeStressGrid[oidx] + 0.06 * excess);
+    candyIntegrity = Math.max(0, candyIntegrity - 0.015 * excess);  
+    shakeIntensity = Math.max(shakeIntensity, 5 * excess);
+    if(candyIntegrity <= 0){ triggerInstantFail('off-path-damage'); }
+    return;
+  }
+
+  if(needleVel < 0.15) return;
+
+  for(let i=0; i<shapePath.length; i++){
+    const a = shapePath[i], b = shapePath[(i+1)%shapePath.length];
+    if(distToSegment(pos, a, b) < CARVE_RADIUS * scale){
+      carvedSegments.add(i);
+      lastCarvedSegment = i;
+    }
+  }
+
+  computeStability();
+  const velocityFactor = clamp(needleVel / (scale * 12), 0, 1);
+  const pressure = 0.30 * (1 + (1 - velocityFactor) * 0.5) * (1 + (1 - stability) * 0.4);
+
+  const { gx, gy } = worldToGrid(needleX, needleY);
+  const radius = 3;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const nx = gx + dx, ny = gy + dy;
+      if (nx < 0 || ny < 0 || nx >= GRID || ny >= GRID) continue;
+      const distCell = Math.sqrt(dx * dx + dy * dy);
+      if (distCell > radius) continue;
+      const falloff = 1 - distCell / radius;
+      const stressDelta = pressure * 0.004 * falloff;
+      const idx = cellIdx(nx, ny);
+      const edgeFactor = (nx === 0 || ny === 0 || nx === GRID - 1 || ny === GRID - 1) ? 1.6 : 1.0;
+      edgeStressGrid[idx] = Math.min(1, edgeStressGrid[idx] + stressDelta * edgeFactor);
+      structuralStrength[idx] = Math.max(0, structuralStrength[idx] - stressDelta * 0.3);
+      carvedCells.add(idx);
+    }
+  }
+
+  completionRatio = carvedSegments.size / shapePath.length;
+  if(checkWin() && phase === 'playing'){
+    phase = 'victory';
+    victoryTimer = 0;
+    candySeparation = 0;
+    playTick(660,0.15,0.25);
+    setTimeout(()=>playTick(880,0.2,0.3),120);
+    setTimeout(()=>playTick(1100,0.25,0.35),240);
+    return;
+  }
+
+  if(Math.random()<0.4) emitDust(needleX, needleY, 2);
+
+  const now = performance.now();
+  if(now - lastScrapeAudio > SCRAPE_AUDIO_MS){
+    lastScrapeAudio = now;
+    playScrape(clamp(needleVel/(scale*10),0,1));
+  }
+
+  const pct=Math.round(candyIntegrity*100);
+  const bar=document.getElementById('integrity-bar');
+  if(bar){
+    const barColor=pct>50?'#ffd93d':pct>25?'#ff9900':'#ff4444';
+    bar.style.width=pct+'%';
+    bar.style.background=barColor;
+    bar.style.boxShadow=pct<25?`0 0 8px ${barColor}99`:'none';
+  }
+  const carvedEl=document.getElementById('hud-carved');
+  if(carvedEl) carvedEl.textContent=Math.round(completionRatio*100)+'%';
+
+  const warnEl=document.getElementById('warning-text');
+  if(warnEl){
+    const stressWarn=edgeStress-0.4;
+    if(stressWarn>0){
+      warnEl.style.opacity=clamp(stressWarn/0.6,0,1);
+      warnEl.textContent=edgeStress>0.72?'⚠ CRITICAL — STEADY YOUR HAND':'⚠ EASE UP';
+    } else {
+      warnEl.style.opacity=0;
+    }
+  }
+}
+
+function triggerInstantFail(reason){
+  if(phase !== 'playing') return;
+  phase = 'eliminating';
+  elimSequenceTimer = 0;
+  elimSequencePhase = 0;
+  needleDown = false;
+  
+  const {gx,gy} = worldToGrid(needleX, needleY);
+  const blastR = 5;
+  for(let dy=-blastR; dy<=blastR; dy++){
+    for(let dx=-blastR; dx<=blastR; dx++){
+      const nx = gx+dx, ny = gy+dy;
+      if(nx<0 || ny<0 || nx>=GRID || ny>=GRID) continue;
+      if(Math.sqrt(dx*dx+dy*dy) > blastR) continue;
+      const idx = cellIdx(nx,ny);
+      edgeStressGrid[idx] = 1.0;
+      structuralStrength[idx] = 0;
+    }
+  }
+}
+
+function updateParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.vy+=0.18; p.vx*=0.95;
+    p.x+=p.vx; p.y+=p.vy;
+    p.life-=p.decay;
+    if(p.life<=0) particles.splice(i,1);
+  }
+}
+
+function render(){
+  frame++;
+
+  shakeIntensity*=0.88;
+  if(shakeIntensity>0.1){
+    shakeX=(Math.random()-0.5)*shakeIntensity;
+    shakeY=(Math.random()-0.5)*shakeIntensity*0.5;
+  } else { shakeX=0; shakeY=0; }
+
+  const tension=1-candyIntegrity;
+  vignetteRed=lerp(vignetteRed, tension*0.7, 0.04);
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.save();
+  ctx.translate(window.__dalgonaOffsetX || 0, window.__dalgonaOffsetY || 0);
+  ctx.translate(shakeX, shakeY);
+
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.4);
+  skyGrad.addColorStop(0, "#73a5c6"); 
+  skyGrad.addColorStop(1, "#a8cbe0"); 
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(-CANDY_X*2, -CANDY_Y*2, canvas.width*2, canvas.height * 0.4 + CANDY_Y*2);
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+  const clouds = [
+    { x: canvas.width * 0.15, y: canvas.height * 0.12, r: 25 * scale },
+    { x: canvas.width * 0.85, y: canvas.height * 0.08, r: 35 * scale },
+    { x: canvas.width * 0.50, y: canvas.height * 0.20, r: 30 * scale }
+  ];
+  clouds.forEach(c => {
+    ctx.beginPath();
+    ctx.arc(c.x - (window.__dalgonaOffsetX||0), c.y - (window.__dalgonaOffsetY||0), c.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  const dirtGrad = ctx.createLinearGradient(0, canvas.height * 0.4, 0, canvas.height);
+  dirtGrad.addColorStop(0, "#e3c798"); 
+  dirtGrad.addColorStop(1, "#b59762"); 
+  ctx.fillStyle = dirtGrad;
+  ctx.fillRect(-CANDY_X*2, canvas.height * 0.4, canvas.width*2, canvas.height);
+
+  // ── Left soldier (MIRROR of right) ────────────────────────────────
+  leftGuardX = canvas.width * 0.16 - (shakeX * 0.35);
+  leftGuardY = canvas.height * 0.42;
+  const lgs = scale * 1.1;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(leftGuardX, leftGuardY + 130 * lgs, 38 * lgs, 9 * lgs, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Suit
+  const leftSuitGrad = ctx.createLinearGradient(
+    leftGuardX - 28 * lgs, leftGuardY + 30 * lgs,
+    leftGuardX + 28 * lgs, leftGuardY + 110 * lgs
+  );
+  leftSuitGrad.addColorStop(0,    '#ff2a6e');
+  leftSuitGrad.addColorStop(0.45, '#bd1e51');
+  leftSuitGrad.addColorStop(1,    '#7a0d2f');
+  ctx.fillStyle = leftSuitGrad;
+  ctx.beginPath();
+  ctx.moveTo(leftGuardX - 26 * lgs, leftGuardY + 115 * lgs);
+  ctx.lineTo(leftGuardX - 19 * lgs, leftGuardY + 32  * lgs);
+  ctx.lineTo(leftGuardX + 19 * lgs, leftGuardY + 32  * lgs);
+  ctx.lineTo(leftGuardX + 26 * lgs, leftGuardY + 115 * lgs);
+  ctx.closePath();
+  ctx.fill();
+
+  // Highlight
+  ctx.fillStyle = 'rgba(255,200,210,0.18)';
+  ctx.fillRect(leftGuardX - 22 * lgs, leftGuardY + 34 * lgs, 4 * lgs, 78 * lgs);
+
+  // Belt
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(leftGuardX - 24 * lgs, leftGuardY + 68 * lgs, 48 * lgs, 6 * lgs);
+  ctx.fillStyle = '#7a7a7a';
+  ctx.fillRect(leftGuardX - 4 * lgs,  leftGuardY + 69 * lgs, 8 * lgs, 4 * lgs);
+
+  // Head
+  const leftHeadR = 19 * lgs;
+  const leftHeadGrad = ctx.createRadialGradient(
+    leftGuardX + 6 * lgs, leftGuardY + 4 * lgs, 2 * lgs,
+    leftGuardX,           leftGuardY + 10 * lgs, leftHeadR
+  );
+  leftHeadGrad.addColorStop(0, '#2a2a2a');
+  leftHeadGrad.addColorStop(1, '#050505');
+  ctx.fillStyle = leftHeadGrad;
+  ctx.beginPath();
+  ctx.arc(leftGuardX, leftGuardY + 10 * lgs, leftHeadR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mask shine
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1 * lgs;
+  ctx.beginPath();
+  ctx.arc(leftGuardX + 2 * lgs, leftGuardY + 6 * lgs, leftHeadR - 1, Math.PI * 1.45, Math.PI * 1.95);
+  ctx.stroke();
+
+  // Square mask
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2 * lgs;
+  ctx.strokeRect(leftGuardX - 7 * lgs, leftGuardY + 3 * lgs, 14 * lgs, 14 * lgs);
+  ctx.shadowColor = 'rgba(255,255,255,0.6)';
+  ctx.shadowBlur = 6 * lgs;
+  ctx.strokeRect(leftGuardX - 7 * lgs, leftGuardY + 3 * lgs, 14 * lgs, 14 * lgs);
+  ctx.shadowBlur = 0;
+
+  // Arms and gun (mirrored)
+  const leftTension = 1 - candyIntegrity;
+  const leftAiming = leftTension > 0.35 || phase === 'snap' || phase === 'eliminated' || phase === 'eliminating';
+  const leftFiring = phase === 'snap' || phase === 'eliminated' || (phase === 'eliminating' && elimSequencePhase >= 1);
+
+  ctx.fillStyle = '#7a0d2f';
+  if (leftAiming) {
+    ctx.fillRect(leftGuardX - 30 * lgs, leftGuardY + 36 * lgs, 14 * lgs, 8 * lgs);
+    ctx.fillRect(leftGuardX + 16 * lgs, leftGuardY + 36 * lgs, 14 * lgs, 8 * lgs);
+  } else {
+    ctx.fillRect(leftGuardX - 22 * lgs, leftGuardY + 40 * lgs, 10 * lgs, 26 * lgs);
+    ctx.fillRect(leftGuardX + 12 * lgs, leftGuardY + 40 * lgs, 10 * lgs, 26 * lgs);
+  }
+
+  // Gun (mirrored - pointing right)
+  ctx.save();
+  ctx.translate(leftGuardX, leftGuardY + 38 * lgs);
+  if (leftAiming) {
+    const leftBarrelLen = 56 * lgs;
+    ctx.fillStyle = '#1a0e0a';
+    ctx.fillRect(-6 * lgs, -5 * lgs, 14 * lgs, 10 * lgs);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(-22 * lgs, -4 * lgs, 16 * lgs, 8 * lgs);
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(-22 * lgs - leftBarrelLen, -2 * lgs, leftBarrelLen, 4 * lgs);
+    ctx.fillStyle = '#444';
+    ctx.fillRect(-14 * lgs, -8 * lgs, 4 * lgs, 4 * lgs);
+
+    const leftTipX = -22 * lgs - leftBarrelLen;
+    const leftTipY = 0;
+    const leftMuzzleX = leftGuardX + leftTipX;
+    const leftMuzzleY = leftGuardY + 38 * lgs + leftTipY;
+    const leftTargetX = canvas.width / 2 + (leftFiring ? 0 : Math.sin(frame * 0.06) * 40 * scale);
+    const leftTargetY = canvas.height / 2 + (leftFiring ? 0 : Math.cos(frame * 0.04) * 25 * scale);
+
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,0,30,${leftFiring ? 0.95 : 0.55})`;
+    ctx.lineWidth = (leftFiring ? 4 : 2) * scale;
+    ctx.shadowColor = 'rgba(255,0,30,0.85)';
+    ctx.shadowBlur = 14 * scale;
+    ctx.beginPath();
+    ctx.moveTo(leftMuzzleX, leftMuzzleY);
+    ctx.lineTo(leftTargetX, leftTargetY);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,200,200,0.95)';
+    ctx.lineWidth = 1 * scale;
+    ctx.beginPath();
+    ctx.moveTo(leftMuzzleX, leftMuzzleY);
+    ctx.lineTo(leftTargetX, leftTargetY);
+    ctx.stroke();
+
+    const leftDotR = (leftFiring ? 7 : 4) * scale;
+    ctx.fillStyle = 'rgba(255,40,40,0.95)';
+    ctx.shadowColor = 'rgba(255,0,0,1)';
+    ctx.shadowBlur = 18 * scale;
+    ctx.beginPath();
+    ctx.arc(leftTargetX, leftTargetY, leftDotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    if (leftFiring && elimSequencePhase === 1 && elimSequenceTimer < 850) {
+      const flashSize = 16 + Math.sin(frame * 0.8) * 4;
+      ctx.fillStyle = 'rgba(255,240,100,0.95)';
+      ctx.shadowColor = 'rgba(255,200,50,0.9)';
+      ctx.shadowBlur = 20 * scale;
+      ctx.beginPath();
+      ctx.arc(leftMuzzleX, leftMuzzleY, flashSize * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  } else {
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(-38 * lgs, 4 * lgs, 44 * lgs, 6 * lgs);
+    ctx.restore();
+  }
+
+  // ── Right soldier ──────────────────────────────────────
+  guardX = canvas.width  * 0.84 - (shakeX * 0.35);
+  guardY = canvas.height * 0.42;
+  const gs     = scale * 1.1;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(guardX, guardY + 130 * gs, 38 * gs, 9 * gs, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const suitGrad = ctx.createLinearGradient(
+    guardX - 28 * gs, guardY + 30 * gs,
+    guardX + 28 * gs, guardY + 110 * gs
+  );
+  suitGrad.addColorStop(0,    '#ff2a6e');
+  suitGrad.addColorStop(0.45, '#bd1e51');
+  suitGrad.addColorStop(1,    '#7a0d2f');
+  ctx.fillStyle = suitGrad;
+  ctx.beginPath();
+  ctx.moveTo(guardX - 26 * gs, guardY + 115 * gs);
+  ctx.lineTo(guardX - 19 * gs, guardY + 32  * gs);
+  ctx.lineTo(guardX + 19 * gs, guardY + 32  * gs);
+  ctx.lineTo(guardX + 26 * gs, guardY + 115 * gs);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,200,210,0.18)';
+  ctx.fillRect(guardX - 22 * gs, guardY + 34 * gs, 4 * gs, 78 * gs);
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(guardX - 24 * gs, guardY + 68 * gs, 48 * gs, 6 * gs);
+  ctx.fillStyle = '#7a7a7a';
+  ctx.fillRect(guardX - 4 * gs,  guardY + 69 * gs, 8 * gs, 4 * gs);
+
+  const headR = 19 * gs;
+  const headGrad = ctx.createRadialGradient(
+    guardX - 6 * gs, guardY + 4 * gs, 2 * gs,
+    guardX,          guardY + 10 * gs, headR
+  );
+  headGrad.addColorStop(0, '#2a2a2a');
+  headGrad.addColorStop(1, '#050505');
+  ctx.fillStyle = headGrad;
+  ctx.beginPath();
+  ctx.arc(guardX, guardY + 10 * gs, headR, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1 * gs;
+  ctx.beginPath();
+  ctx.arc(guardX - 2 * gs, guardY + 6 * gs, headR - 1, Math.PI * 1.05, Math.PI * 1.55);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2 * gs;
+  ctx.strokeRect(guardX - 7 * gs, guardY + 3 * gs, 14 * gs, 14 * gs);
+  ctx.shadowColor = 'rgba(255,255,255,0.6)';
+  ctx.shadowBlur = 6 * gs;
+  ctx.strokeRect(guardX - 7 * gs, guardY + 3 * gs, 14 * gs, 14 * gs);
+  ctx.shadowBlur = 0;
+
+  const tensionLevel = 1 - candyIntegrity;        
+  const isAiming     = tensionLevel > 0.35 || phase === 'snap' || phase === 'eliminated' || phase === 'eliminating';
+  const isFiring     = phase === 'snap' || phase === 'eliminated' || (phase === 'eliminating' && elimSequencePhase >= 1);
+
+  ctx.fillStyle = '#7a0d2f';
+  if (isAiming) {
+    ctx.fillRect(guardX - 30 * gs, guardY + 36 * gs, 14 * gs, 8 * gs);
+    ctx.fillRect(guardX + 16 * gs, guardY + 36 * gs, 14 * gs, 8 * gs);
+  } else {
+    ctx.fillRect(guardX - 22 * gs, guardY + 40 * gs, 10 * gs, 26 * gs);
+    ctx.fillRect(guardX + 12 * gs, guardY + 40 * gs, 10 * gs, 26 * gs);
+  }
+
+  ctx.save();
+  ctx.translate(guardX, guardY + 38 * gs);
+  if (isAiming) {
+    const barrelLen = 56 * gs;
+    ctx.fillStyle = '#1a0e0a';
+    ctx.fillRect(-8 * gs, -5 * gs, 14 * gs, 10 * gs);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(6 * gs, -4 * gs, 16 * gs, 8 * gs);
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(22 * gs, -2 * gs, barrelLen, 4 * gs);
+    ctx.fillStyle = '#444';
+    ctx.fillRect(10 * gs, -8 * gs, 4 * gs, 4 * gs);
+
+    const tipX = 22 * gs + barrelLen;
+    const tipY = 0;
+    const muzzleAbsX = guardX + tipX;
+    const muzzleAbsY = guardY + 38 * gs + tipY;
+    const targetX   = canvas.width  / 2 + (isFiring ? 0 : Math.sin(frame * 0.06) * 40 * scale);
+    const targetY   = canvas.height / 2 + (isFiring ? 0 : Math.cos(frame * 0.04) * 25 * scale);
+
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,0,30,${isFiring ? 0.95 : 0.55})`;
+    ctx.lineWidth = (isFiring ? 4 : 2) * scale;
+    ctx.shadowColor = 'rgba(255,0,30,0.85)';
+    ctx.shadowBlur = 14 * scale;
+    ctx.beginPath();
+    ctx.moveTo(muzzleAbsX, muzzleAbsY);
+    ctx.lineTo(targetX, targetY);
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,200,200,0.95)';
+    ctx.lineWidth = 1 * scale;
+    ctx.beginPath();
+    ctx.moveTo(muzzleAbsX, muzzleAbsY);
+    ctx.lineTo(targetX, targetY);
+    ctx.stroke();
+
+    const dotR = (isFiring ? 7 : 4) * scale;
+    ctx.fillStyle = 'rgba(255,40,40,0.95)';
+    ctx.shadowColor = 'rgba(255,0,0,1)';
+    ctx.shadowBlur = 18 * scale;
+    ctx.beginPath();
+    ctx.arc(targetX, targetY, dotR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    if (isFiring && elimSequencePhase === 1 && elimSequenceTimer < 850) {
+      const flashSize = 16 + Math.sin(frame * 0.8) * 4;
+      ctx.fillStyle = 'rgba(255,240,100,0.95)';
+      ctx.shadowColor = 'rgba(255,200,50,0.9)';
+      ctx.shadowBlur = 20 * scale;
+      ctx.beginPath();
+      ctx.arc(muzzleAbsX, muzzleAbsY, flashSize * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  } else {
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(-6 * gs, 4 * gs, 44 * gs, 6 * gs);
+    ctx.restore();
+  }
+
+  // ── Candy slab ───────────────────────────────────────────────────
+  if (candyOffscreen && phase !== 'intro') {
+    ctx.save();
+    const hbPulse = (phase === 'playing' && edgeStress > FRACTURE_THRESHOLD)
+      ? 1 + Math.sin(heartbeatPhase) * 0.016 * edgeStress : 1;
+    const cx = CANDY_X * scale + (CANDY_W * scale * (1 - hbPulse)) / 2;
+    const cy = CANDY_Y * scale + (CANDY_H * scale * (1 - hbPulse)) / 2;
+    ctx.translate(cx, cy);
+    ctx.scale(hbPulse, hbPulse);
+    ctx.drawImage(candyOffscreen, 0, 0);
+    
+    // Enhanced crack overlay based on stress
+    if (edgeStress > 0.2) {
+      const crackAlpha = clamp((edgeStress - 0.2) / 0.8, 0, 1);
+      ctx.fillStyle = `rgba(80,20,0,${crackAlpha * 0.35})`;
+      ctx.fillRect(0, 0, CANDY_W * scale, CANDY_H * scale);
+      
+      // Visible crack lines overlay
+      ctx.strokeStyle = `rgba(25,6,0,${crackAlpha * 0.85})`;
+      ctx.lineWidth = Math.max(2, crackAlpha * 6) * scale;
+      ctx.setLineDash([8 * scale, 4 * scale]);
+      for (let i = 0; i < Math.floor(crackAlpha * 12); i++) {
+        const x1 = Math.random() * CANDY_W * scale;
+        const y1 = Math.random() * CANDY_H * scale;
+        const angle = Math.random() * Math.PI;
+        const len = (30 + Math.random() * 60) * scale * crackAlpha;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x1 + Math.cos(angle) * len, y1 + Math.sin(angle) * len);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+    
+    if (edgeStress > 0.3) {
+      const burnAlpha = clamp((edgeStress - 0.3) / 0.7, 0, 1) * 0.48;
+      ctx.fillStyle = `rgba(60,10,0,${burnAlpha})`;
+      ctx.fillRect(0, 0, CANDY_W * scale, CANDY_H * scale);
+    }
+    ctx.restore();
+    
+    // Victory separation effect with OUTER CANDY SHATTER
+    if (phase === 'victory' && candySeparation > 0) {
+      // Generate candy pieces once at start of victory
+      if (outerCandyPieces.length === 0 && candySeparation > 0.05) {
+        for (let i = 0; i < 24; i++) {
+          const angle = (i / 24) * Math.PI * 2;
+          const distance = 60 + Math.random() * 40;
+          outerCandyPieces.push({
+            x: CANDY_X * scale + (CANDY_W * scale / 2) + Math.cos(angle) * distance * scale,
+            y: CANDY_Y * scale + (CANDY_H * scale / 2) + Math.sin(angle) * distance * scale,
+            vx: Math.cos(angle) * (2 + Math.random() * 3) * scale,
+            vy: Math.sin(angle) * (2 + Math.random() * 3) * scale + Math.random() * 2 * scale,
+            rotation: Math.random() * Math.PI * 2,
+            rotSpeed: (Math.random() - 0.5) * 0.15,
+            size: (15 + Math.random() * 25) * scale,
+            alpha: 1
+          });
+        }
+      }
+      
+      // Animate and draw falling pieces
+      for (let piece of outerCandyPieces) {
+        piece.x += piece.vx;
+        piece.y += piece.vy;
+        piece.vy += 0.4 * scale; // gravity
+        piece.rotation += piece.rotSpeed;
+        piece.alpha = Math.max(0, piece.alpha - 0.015);
+        
+        ctx.save();
+        ctx.globalAlpha = piece.alpha;
+        ctx.translate(piece.x, piece.y);
+        ctx.rotate(piece.rotation);
+        ctx.fillStyle = '#d08820';
+        ctx.fillRect(-piece.size / 2, -piece.size / 2, piece.size, piece.size);
+        ctx.restore();
+      }
+      
+      // Draw perfectly carved shape rising and glowing
+      const sepDist = candySeparation * 8 * scale;
+      ctx.save();
+      ctx.translate(0, -sepDist);
+      ctx.globalAlpha = 1;
+      ctx.shadowColor = 'rgba(245,200,66,0.95)';
+      ctx.shadowBlur = 30 * scale * candySeparation;
+      
+      ctx.beginPath();
+      shapePath.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+      ctx.closePath();
+      
+      const victoryGrad = ctx.createRadialGradient(
+        CANDY_X * scale + (CANDY_W * scale / 2), 
+        CANDY_Y * scale + (CANDY_H * scale / 2), 
+        0,
+        CANDY_X * scale + (CANDY_W * scale / 2), 
+        CANDY_Y * scale + (CANDY_H * scale / 2), 
+        CANDY_W * scale * 0.6
+      );
+      victoryGrad.addColorStop(0, '#ffee88');
+      victoryGrad.addColorStop(0.6, '#f5d050');
+      victoryGrad.addColorStop(1, '#e8b030');
+      ctx.fillStyle = victoryGrad;
+      ctx.fill();
+      
+      ctx.strokeStyle = 'rgba(255,240,150,0.95)';
+      ctx.lineWidth = 4 * scale;
+      ctx.stroke();
+      
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+  }
+
+  // ── Fracture cracks ───────────────────────────────────────────────
+  for (let fi = 0; fi < fracturePoints.length; fi++) {
+    const fp = fracturePoints[fi];
+    const progress = fp.age / 90;
+    const alpha = clamp((1 - progress) * fp.severity, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    for (let ai = 0; ai < fp.spokeAngles.length; ai++) {
+      const angle = fp.spokeAngles[ai];
+      const len = fp.radius;
+      ctx.strokeStyle = `rgba(25,6,0,${alpha * 0.95})`;
+      ctx.lineWidth = lerp(3.5, 0.4, progress) * scale;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(fp.x, fp.y);
+      ctx.lineTo(fp.x + Math.cos(angle) * len, fp.y + Math.sin(angle) * len);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ── Shape outline ─────────────────────────────────────────────────
+  if ((phase === 'playing' || phase === 'countdown') && shapePath.length) {
+    ctx.save();
+    
+    // Carved area fill (darkened interior)
+    if (carvedSegments.size > 0) {
+      ctx.fillStyle = 'rgba(160,100,20,0.25)';
+      ctx.shadowColor = 'rgba(245,180,20,0.4)';
+      ctx.shadowBlur = 12 * scale;
+      ctx.beginPath();
+      shapePath.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    
+    // SMOOTH CONTINUOUS CARVED GROOVE
+    if (needlePathHistory.length > 1) {
+      ctx.strokeStyle = 'rgba(180,120,30,0.85)';
+      ctx.lineWidth = 18 * scale;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = 'rgba(200,140,40,0.6)';
+      ctx.shadowBlur = 8 * scale;
+      ctx.beginPath();
+      ctx.moveTo(needlePathHistory[0].x, needlePathHistory[0].y);
+      for (let i = 1; i < needlePathHistory.length; i++) {
+        ctx.lineTo(needlePathHistory[i].x, needlePathHistory[i].y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    
+    // Faint dotted guide for uncarved path
+    ctx.setLineDash([6 * scale, 5 * scale]);
+    ctx.lineDashOffset = frame * 0.45;
+    ctx.strokeStyle = 'rgba(55,25,3,0.48)';
+    ctx.lineWidth = 2 * scale;
+    ctx.beginPath();
+    shapePath.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+    ctx.closePath();
+    ctx.stroke();
+    
+    // Glowing amber for carved segments
+    ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
+    ctx.shadowColor = 'rgba(245,180,20,0.9)';
+    ctx.shadowBlur = 14 * scale;
+    ctx.strokeStyle = 'rgba(255,220,60,0.98)';
+    ctx.lineWidth = 5 * scale;
+    ctx.lineCap = 'round';
+    for (let si = 0; si < shapePath.length; si++) {
+      if (carvedSegments.has(si)) {
+        const a = shapePath[si];
+        const b = shapePath[(si + 1) % shapePath.length];
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // ── Particles ─────────────────────────────────────────────────────
+  for (let pi = 0; pi < particles.length; pi++) {
+    const p = particles[pi];
+    ctx.save();
+    ctx.globalAlpha = clamp(p.life, 0, 1);
+    ctx.fillStyle = `rgb(${p.r},${p.g},${p.b})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(0.5, p.size * scale * 0.55), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ── Bullets ───────────────────────────────────────────────────────
+  for (let bi = 0; bi < bullets.length; bi++) {
+    const b = bullets[bi];
+    ctx.save();
+    ctx.globalAlpha = clamp(b.life, 0, 1);
+    ctx.fillStyle = '#ffc040';
+    ctx.shadowColor = 'rgba(255,200,64,0.9)';
+    ctx.shadowBlur = 8 * scale;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Bullet trail
+    ctx.strokeStyle = 'rgba(255,200,64,0.6)';
+    ctx.lineWidth = 2 * scale;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x - b.vx * 0.3, b.y - b.vy * 0.3);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // ── Needle cursor ─────────────────────────────────────────────────
+  if (phase === 'playing') {
+    const nx = needleX, ny = needleY;
+    const pulseR = (7 + Math.sin(frame * 0.14) * 1.5) * scale;
+    ctx.save();
+    ctx.strokeStyle = needleDown ? 'rgba(245,200,66,0.92)' : 'rgba(245,200,66,0.45)';
+    ctx.lineWidth = 1.5 * scale;
+    ctx.beginPath(); ctx.arc(nx, ny, pulseR, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = needleDown ? 'rgba(255,240,100,1)' : 'rgba(245,200,66,0.7)';
+    ctx.beginPath(); ctx.arc(nx, ny, 2.5 * scale, 0, Math.PI * 2); ctx.fill();
+    if (needleDown) {
+      ctx.strokeStyle = 'rgba(245,200,66,0.5)';
+      ctx.lineWidth = 1 * scale;
+      const cr = 13 * scale, ci = 8 * scale;
+      ctx.beginPath();
+      ctx.moveTo(nx-cr,ny); ctx.lineTo(nx-ci,ny);
+      ctx.moveTo(nx+ci,ny); ctx.lineTo(nx+cr,ny);
+      ctx.moveTo(nx,ny-cr); ctx.lineTo(nx,ny-ci);
+      ctx.moveTo(nx,ny+ci); ctx.lineTo(nx,ny+cr);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // End world-space transform
+  ctx.restore();
+
+  // ── Screen-space overlays (after ctx.restore so no offset applied) ─
+  // Danger vignette
+  if (vignetteRed > 0.01) {
+    const vGrad = ctx.createRadialGradient(
+      canvas.width/2, canvas.height/2, canvas.width * 0.18,
+      canvas.width/2, canvas.height/2, canvas.width * 0.72
+    );
+    vGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    vGrad.addColorStop(1, `rgba(120,0,0,${vignetteRed * 0.72})`);
+    ctx.fillStyle = vGrad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Snap blood splatter
+  if (phase === 'snap') {
+    const t = (frame % 24) / 24;
+    ctx.fillStyle = `rgba(140,0,0,${0.55 * (1 - t)})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(70,0,0,0.92)';
+    for (let i = 0; i < 14; i++) {
+      const bX = canvas.width  / 2 + (Math.random() - 0.5) * 260 * scale;
+      const bY = canvas.height / 2 + (Math.random() - 0.5) * 200 * scale;
+      const bR = (Math.random() * 36 + 8) * scale;
+      ctx.beginPath(); ctx.arc(bX, bY, bR, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(110,0,0,0.85)';
+    for (let i = 0; i < 10; i++) {
+      const bX = canvas.width / 2 + (Math.random() - 0.5) * 380 * scale;
+      const bY = canvas.height / 2 + (Math.random() - 0.5) * 250 * scale;
+      const bR = (Math.random() * 42 + 10) * scale;
+      ctx.beginPath(); ctx.arc(bX, bY, bR, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+// ── Win condition ─────────────────────────────────────
+function checkWin() {
+  return completionRatio >= COMPLETION_WIN && candyIntegrity > 0;
+}
+
+// ── Physics update (called each frame while playing) ──
+function updatePhysics(dt) {
+  if (phase !== 'playing') return;
+
+  // Natural stress decay when needle is lifted
+  const decayRate = needleDown ? 0.0012 : 0.0024;
+  for (let i = 0; i < GRID * GRID; i++) {
+    edgeStressGrid[i] = Math.max(0, edgeStressGrid[i] - decayRate * dt / 16);
+  }
+
+  // Passive micro-instability while pressing (perfectly still hands don't exist)
+  if (needleDown && stabCount > 0) {
+    const wobble = BASE_STRESS * (1 + (1 - stability) * INSTABILITY_MULT) * dt / 16;
+    const { gx, gy } = worldToGrid(needleX, needleY);
+    const idx = cellIdx(gx, gy);
+    edgeStressGrid[idx] = Math.min(1, edgeStressGrid[idx] + wobble);
+  }
+
+  updateBullets();
+
+  // Derive aggregate edge stress (max of all cells)
+  let maxStress = 0;
+  for (let i = 0; i < GRID * GRID; i++) {
+    if (edgeStressGrid[i] > maxStress) maxStress = edgeStressGrid[i];
+  }
+  edgeStress = lerp(edgeStress, maxStress, 0.10);
+
+  // Integrity drain above fracture threshold
+  if (edgeStress > FRACTURE_THRESHOLD) {
+    const drain = (edgeStress - FRACTURE_THRESHOLD) * EDGE_TO_INTEGRITY * 0.0025 * dt / 16;
+    candyIntegrity = Math.max(0, candyIntegrity - drain);
+    heartbeatPhase += 0.10 * dt / 16;
+  }
+
+  // Emit micro-fracture visuals at hottest cell
+  if (edgeStress > 0.58 && Math.random() < 0.022 * dt / 16) {
+    let hotIdx = -1, hotVal = 0;
+    for (let i = 0; i < GRID * GRID; i++) {
+      if (edgeStressGrid[i] > hotVal) { hotVal = edgeStressGrid[i]; hotIdx = i; }
+    }
+    if (hotIdx >= 0 && hotVal > 0.58) {
+      const fgx = hotIdx % GRID;
+      const fgy = Math.floor(hotIdx / GRID);
+      const fx = (CANDY_X + fgx * CELL + CELL / 2) * scale;
+      const fy = (CANDY_Y + fgy * CELL + CELL / 2) * scale;
+      emitCrackSpark(fx, fy, hotVal * 0.3);
+      if (hotVal > 0.82) playMicrocrack(hotVal);
+      fracturePoints.push({
+        x: fx, y: fy,
+        radius: 2 * scale,
+        maxRadius: (5 + 9 * hotVal) * scale,
+        age: 0, severity: hotVal,
+        spokeAngles: Array.from({ length: 3 + Math.floor(Math.random() * 4) },
+          () => Math.random() * Math.PI * 2)
+      });
+    }
+  }
+
+  // Age + expand fracture points
+  for (let i = fracturePoints.length - 1; i >= 0; i--) {
+    const fp = fracturePoints[i];
+    fp.age++;
+    fp.radius = Math.min(fp.maxRadius, fp.radius + 0.55 * scale);
+    if (fp.age > 90) fracturePoints.splice(i, 1);
+  }
+
+  // Update HUD integrity bar
+  const pct = Math.round(candyIntegrity * 100);
+  const bar = document.getElementById('integrity-bar');
+  if (bar) {
+    const barColor = pct > 50 ? '#ffd93d' : pct > 25 ? '#ff9900' : '#ff4444';
+    bar.style.width = pct + '%';
+    bar.style.background = barColor;
+    bar.style.boxShadow = pct < 25 ? `0 0 8px ${barColor}99` : 'none';
+  }
+
+  // Break if integrity fully depleted
+  if (candyIntegrity <= 0) {
+    triggerInstantFail('integrity-depleted');
+  }
+}
+
+// ── Countdown tick ────────────────────────────────────
+function updateCountdown(dt) {
+  if (phase !== 'countdown') return;
+  countdownTimer += dt;
+  if (countdownTimer >= 1000) {
+    countdownTimer -= 1000;
+    countdownVal--;
+    const disp = document.getElementById('countdown-display');
+    if (countdownVal > 0) {
+      showCinematicCount(countdownVal);
+      if (disp) disp.textContent = String(countdownVal);
+    } else {
+      showCinematicGo();
+      if (disp) disp.textContent = '';
+      // Small delay so "GO!" fully renders before play begins
+      setTimeout(() => setPhase('playing'), 430);
+    }
+  }
+}
+
+// ── Main game loop ────────────────────────────────────
+let lastTimestamp = 0;
+function loop(timestamp) {
+  // Cap dt at 50 ms to survive tab backgrounding
+  const dt = lastTimestamp ? Math.min(timestamp - lastTimestamp, 50) : 16;
+  lastTimestamp = timestamp;
+
+  updateCountdown(dt);
+  
+  // ── Elimination sequence ──────────────────────────────
+  if (phase === 'eliminating') {
+    elimSequenceTimer += dt;
+    
+    if (elimSequencePhase === 0 && elimSequenceTimer > 400) {
+      // Aim complete → Fire
+      elimSequencePhase = 1;
+      playSnap();
+      shakeIntensity = 12;
+      
+      const targetX = canvas.width / 2;
+      const targetY = canvas.height / 2;
+      const rightMuzzleX = guardX + (22 * scale + 56 * scale);
+      const rightMuzzleY = guardY + 38 * scale;
+      const leftMuzzleX = leftGuardX - (22 * scale + 56 * scale);
+      const leftMuzzleY = leftGuardY + 38 * scale;
+      
+      createBullet(rightMuzzleX, rightMuzzleY, targetX, targetY);
+      createBullet(leftMuzzleX, leftMuzzleY, targetX, targetY);
+    }
+    
+    if (elimSequencePhase === 1 && elimSequenceTimer > 650) {
+      // Bullets hit → Impact
+      elimSequencePhase = 2;
+      shakeIntensity = 26;
+      for(let i=0; i<4; i++) emitCrackSpark(canvas.width/2, canvas.height/2, 1.0);
+      
+      for(let i=0; i<12; i++){
+        const a=Math.random()*Math.PI*2, r=(20+Math.random()*40)*scale;
+        const fx = canvas.width/2 + Math.cos(a)*r;
+        const fy = canvas.height/2 + Math.sin(a)*r;
+        fracturePoints.push({
+          x: fx, y: fy,
+          radius: 3 * scale, maxRadius: (18+Math.random()*14) * scale,
+          age: 0, severity: 1.0,
+          spokeAngles: Array.from({length:6}, (_,k)=>(k/6)*Math.PI*2+Math.random()*0.6)
+        });
+      }
+    }
+    
+    if (elimSequencePhase === 2 && elimSequenceTimer > 750) {
+      // Impact → Blood
+      elimSequencePhase = 3;
+      phase = 'snap';
+    }
+  }
+
+  // Handled separately from 'eliminating' to allow timer continuation
+  if (phase === 'snap' && elimSequencePhase === 3) {
+    elimSequenceTimer += dt;
+    if (elimSequenceTimer > 2900) {
+      setPhase('eliminated');
+    }
+  }
+  
+  // ── Victory sequence ──────────────────────────────────
+  if (phase === 'victory') {
+    victoryTimer += dt;
+    candySeparation = Math.min(1, victoryTimer / 800);
+    
+    if (victoryTimer > 1200) {
+      setPhase('success');
+    }
+  }
+  
+  updatePhysics(dt);
+  updateParticles();
+
+  if (phase !== 'intro' || phase === 'victory' || phase === 'eliminating') render();
+
+  rafId = requestAnimationFrame(loop);
+}
+
+// ── Back / menu button ────────────────────────────────
+document.getElementById('back-btn').addEventListener('click', () => {
+  sendBridgeMessage({ type: 'DALGONA_MENU' });
+});
+
+// ── Boot sequence ─────────────────────────────────────
+window.addEventListener('resize', resize);
+resize();
+initGame(pickShape());
+setPhase('intro');
+rafId = requestAnimationFrame(loop);
+</script>
+</body>
+</html>
