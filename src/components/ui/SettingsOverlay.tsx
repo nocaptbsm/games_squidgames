@@ -9,6 +9,8 @@
 import React, { useEffect, useRef } from "react";
 import { useGameStore } from "@/store/gameStore";
 import { SymbolTrio } from "./SquidSymbols";
+import { SoundManager } from "@/managers/SoundManager";
+import { MusicManager } from "@/managers/MusicManager";
 
 interface SettingsOverlayProps {
   onClose: () => void;
@@ -77,8 +79,8 @@ export default function SettingsOverlay({ onClose, onHover, onClick }: SettingsO
   // Apply settings to audio managers whenever they change
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const sm = require('@/managers/SoundManager').SoundManager.getInstance();
-      const mm = require('@/managers/MusicManager').MusicManager.getInstance();
+      const sm = SoundManager.getInstance();
+      const mm = MusicManager.getInstance();
       
       sm.setMasterVolume(settings.masterVolume);
       sm.setSFXVolume(settings.sfxVolume);

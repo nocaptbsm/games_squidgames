@@ -299,13 +299,6 @@ export const useGameStore = create<GameStoreState>()(
       }),
 
     clearActiveGame: () => {
-      if (typeof window !== 'undefined') {
-        const { SoundManager } = require('@/managers/SoundManager');
-        const { musicManager } = require('@/managers/MusicManager');
-        SoundManager.getInstance().stopAll(0);
-        SoundManager.getInstance().stopAllLoops(0);
-        musicManager.stopAll();
-      }
       set({
         activeGame: "menu",
         runtimePhase: "idle",
