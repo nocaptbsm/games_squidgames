@@ -832,7 +832,9 @@ function resize(){
   const vh = window.innerHeight;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-  const fitScale = Math.max(vw / WORLD_W, vh / WORLD_H);
+  // Use Math.min instead of Math.max to ensure the entire shape fits within the screen (contain vs cover)
+  // Multiply by 0.95 to add a small margin around the candy so it's not flush with the screen edges.
+  const fitScale = Math.min(vw / WORLD_W, vh / WORLD_H) * 0.95;
   scale = fitScale * dpr;
 
   canvas.style.width  = vw + 'px';
