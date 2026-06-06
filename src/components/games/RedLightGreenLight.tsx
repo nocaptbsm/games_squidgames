@@ -40,11 +40,13 @@ const FINISH_Z           = -10;
 const START_Z            = FIELD_LEN - 10;
 const PLAYER_SPEED       = 8.0;
 const PLAYER_SPRINT_MULT = 1.55;
-const TURN_DURATION      = 0.55;        
+const TURN_DURATION      = 0.35;        
 const GRACE_PERIOD       = 0.25;        
 const VELOCITY_DEADZONE  = 0.02;        
-const RED_DURATION_BASE  = 3.2;         
-const RED_DURATION_MIN   = 2.0;
+const RED_DURATION_BASE  = 2.2;         
+const RED_DURATION_MIN   = 1.2;
+const GREEN_DURATION_MAX = 4.0;         // force red after this many seconds even if song not done
+
 const MOVE_THRESHOLD     = 0.05;        
 const NPC_COUNT          = 18;
 
@@ -339,6 +341,7 @@ function Scene({ onGameOver, onHudUpdate, pausedRef, inputRef, resetSignal, roun
 
   const shotLineRef = useRef<THREE.Line>(null);
   const shotTimerRef = useRef<number>(0);
+  const greenTimerRef = useRef(0); // how long we've been in green light
 
   const handleDollSongEnd = useCallback(() => {
     if (lightPhaseRef.current === LightPhase.GREEN && gamePhaseRef.current === GamePhase.PLAYING) {
@@ -404,6 +407,7 @@ function Scene({ onGameOver, onHudUpdate, pausedRef, inputRef, resetSignal, roun
     }
     playersRef.current    = arr;
     lightPhaseRef.current = LightPhase.GREEN;
+    greenTimerRef.current = 0;
     turnTRef.current      = 0;
     redTimerRef.current   = 0;
     graceTimerRef.current = 0;
@@ -502,6 +506,7 @@ function Scene({ onGameOver, onHudUpdate, pausedRef, inputRef, resetSignal, roun
         lightPhaseRef.current = LightPhase.RED;
         redTimerRef.current = 0;
         graceTimerRef.current = 0;
+        greenTimerRef.current = 0;
         dollRotationRef.current = Math.PI;
         sm.loop("scan_tone" as any);
         sm.loop("heartbeat" as any);
@@ -514,6 +519,7 @@ function Scene({ onGameOver, onHudUpdate, pausedRef, inputRef, resetSignal, roun
         lightPhaseRef.current = LightPhase.GREEN;
         redTimerRef.current   = 0;
         graceTimerRef.current = 0;
+        greenTimerRef.current = 0;
         dollRotationRef.current = 0;
         sm.stopLoop("heartbeat" as any, 400);
         sm.stopLoop("scan_tone" as any, 300);
@@ -521,6 +527,15 @@ function Scene({ onGameOver, onHudUpdate, pausedRef, inputRef, resetSignal, roun
       }
     } else if (lp === LightPhase.GREEN) {
       dollRotationRef.current = 0;
+      greenTimerRef.current += dt;
+      // Force transition to warning if green light has lasted too long
+      if (greenTimerRef.current >= GREEN_DURATION_MAX) {
+        greenTimerRef.current = 0;
+        lightPhaseRef.current = LightPhase.WARNING;
+        turnTRef.current = 0;
+        MusicManager.getInstance().stop(0); // cut song short
+        sm.play("countdown_beep" as any);
+      }
     }
 
     if (human.alive && !human.finished && gamePhaseRef.current === GamePhase.PLAYING) {
@@ -997,15 +1012,23 @@ export default function RedLightGreenLight3D({ onExit, onComplete }: RLGLProps) 
     setResetSignal((n) => n + 1);
   }, [setRuntimePhase, difficultyTimer]);
 
-  const moveHoldHandlers = useMemo(() => ({
-    onPointerDown: (e: React.PointerEvent) => { 
-      (e.target as HTMLElement).setPointerCapture?.(e.pointerId); 
-      inputRef.current.forward = true; 
-    },
-    onPointerUp:   () => { inputRef.current.forward = false; },
-    onPointerLeave:() => { inputRef.current.forward = false; },
-    onPointerCancel:() => { inputRef.current.forward = false; },
-  }), []);
+  // Touch-anywhere-to-move: track active touch count so multi-finger taps
+  // still work, and movement stops only when ALL fingers lift.
+  const activeTouchesRef = useRef(0);
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    // Ignore if the touch originated on a UI button (exit, pause, etc.)
+    if ((e.target as HTMLElement).closest('button')) return;
+    activeTouchesRef.current = e.touches.length;
+    inputRef.current.forward = true;
+  }, [inputRef]);
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    activeTouchesRef.current = e.touches.length;
+    if (e.touches.length === 0) inputRef.current.forward = false;
+  }, [inputRef]);
+  const handleTouchCancel = useCallback(() => {
+    activeTouchesRef.current = 0;
+    inputRef.current.forward = false;
+  }, [inputRef]);
 
   return (
     <div
@@ -1035,6 +1058,45 @@ export default function RedLightGreenLight3D({ onExit, onComplete }: RLGLProps) 
           />
         </Suspense>
       </Canvas>
+
+      {/* Full-screen touch layer — tap anywhere (except HUD buttons) to run */}
+      <div
+        data-testid="rlgl3d-touch-layer"
+        className="rlgl3d-touch-only"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
+        style={{
+          position: "absolute", inset: 0, zIndex: 8,
+          pointerEvents: "auto",
+          touchAction: "none",
+          /* fully transparent — just captures touches */
+          background: "transparent",
+        }}
+      />
+      {/* Tap-to-move hint shown only before game starts or briefly at start */}
+      <div
+        className="rlgl3d-touch-only"
+        style={{
+          position: "absolute", bottom: 32, left: 0, right: 0, zIndex: 9,
+          display: "flex", justifyContent: "center", pointerEvents: "none",
+        }}
+      >
+        <div style={{
+          padding: "10px 24px",
+          background: "rgba(0,0,0,0.55)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          borderRadius: 40,
+          backdropFilter: "blur(8px)",
+          color: "rgba(255,255,255,0.65)",
+          fontSize: 12, letterSpacing: "0.18em", fontWeight: 700,
+          textTransform: "uppercase",
+          animation: "rlgl3d-hint-fade 3s ease-in-out 1.5s forwards",
+          opacity: 1,
+        }}>
+          HOLD SCREEN TO MOVE
+        </div>
+      </div>
 
       <HUDOverlay
         hud={hud}
@@ -1091,31 +1153,6 @@ export default function RedLightGreenLight3D({ onExit, onComplete }: RLGLProps) 
         />
       )}
 
-      <div
-        data-testid="rlgl3d-mobile-controls"
-        style={{
-          position: "absolute", bottom: 28, left: 0, right: 0, zIndex: 25,
-          display: "flex", justifyContent: "center", gap: 24, pointerEvents: "none",
-        }}
-        className="rlgl3d-touch-only"
-      >
-        <button
-          {...moveHoldHandlers}
-          data-testid="rlgl3d-move-btn"
-          style={{
-            pointerEvents: "auto",
-            width: 110, height: 110, borderRadius: 60,
-            background: "rgba(15,160,125,0.75)",
-            border: "3px solid rgba(255,255,255,0.6)",
-            color: "#fff", fontSize: 14, fontWeight: 800, letterSpacing: "0.18em",
-            backdropFilter: "blur(6px)",
-            boxShadow: "0 0 32px rgba(15,160,125,0.5)",
-            touchAction: "none",
-          }}
-        >
-          HOLD<br/>TO RUN
-        </button>
-      </div>
 
       <style>{`
         @keyframes rlgl3d-pulse {
@@ -1124,6 +1161,11 @@ export default function RedLightGreenLight3D({ onExit, onComplete }: RLGLProps) 
         }
         @media (pointer: fine) {
           .rlgl3d-touch-only { display: none !important; }
+        }
+        @keyframes rlgl3d-hint-fade {
+          0%   { opacity: 1; }
+          70%  { opacity: 1; }
+          100% { opacity: 0; }
         }
       `}</style>
     </div>
