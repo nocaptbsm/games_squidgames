@@ -29,6 +29,8 @@ import {
   RLGLGuard,
   RLGLContestant,
 } from "@/components/r3f/models";
+import { GameResultBoard } from "@/components/ui/GameResultBoard";
+import type { GameResultRow } from "@/components/ui/GameResultBoard";
 
 /* ─────────────────────────────────────────────────────────────────────────────
  * CONSTANTS — world layout, gameplay tunables
@@ -1024,6 +1026,30 @@ export default function RedLightGreenLight3D({ onExit, onComplete }: RLGLProps) 
     setResetSignal((n) => n + 1);
   }, [setRuntimePhase, difficultyTimer]);
 
+  // Build scoreboard rows: player first, then a sample of NPCs
+  const buildRows = useCallback((outcome: "victory" | "eliminated", aliveNPCs: number): GameResultRow[] => {
+    const rows: GameResultRow[] = [
+      {
+        participantNumber: 456,
+        name: "PLAYER",
+        outcome: outcome === "victory" ? "survived" : "eliminated",
+        detail: outcome === "victory" ? "Reached the finish line" : "Moved during red light",
+        isPlayer: true,
+      },
+    ];
+    // Show a handful of NPC rows
+    const npcNumbers = [67, 101, 212, 324, 199, 388, 17, 240];
+    for (let i = 0; i < Math.min(8, NPC_COUNT); i++) {
+      const survived = i < aliveNPCs - 1; // subtract 1 for player
+      rows.push({
+        participantNumber: npcNumbers[i] ?? 100 + i * 7,
+        name: `PARTICIPANT ${npcNumbers[i] ?? 100 + i * 7}`,
+        outcome: survived ? "survived" : "eliminated",
+      });
+    }
+    return rows;
+  }, []);
+
   // Touch-anywhere-to-move: track active touch count so multi-finger taps
   // still work, and movement stops only when ALL fingers lift.
   const activeTouchesRef = useRef(0);
@@ -1156,12 +1182,23 @@ export default function RedLightGreenLight3D({ onExit, onComplete }: RLGLProps) 
       )}
 
       {endState && (
-        <EndScreen
-          phase={endState.phase}
+        <GameResultBoard
+          gameTitle="Red Light, Green Light"
+          gameSubtitle="ROUND 1 — RED LIGHT, GREEN LIGHT"
           score={endState.score}
-          aliveCount={hud.aliveCount}
+          statLabel="SURVIVORS"
+          statValue={`${hud.aliveCount}/${NPC_COUNT + 1}`}
+          rows={buildRows(
+            endState.phase === GamePhase.VICTORY ? "victory" : "eliminated",
+            hud.aliveCount,
+          )}
           onRestart={handleRestart}
-          onExit={onExit}
+          onMenu={onExit ? () => {
+            SoundManager.getInstance().stopAll(0);
+            SoundManager.getInstance().stopAllLoops(0);
+            MusicManager.getInstance().stopAll();
+            onExit();
+          } : undefined}
         />
       )}
 

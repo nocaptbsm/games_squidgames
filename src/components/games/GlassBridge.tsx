@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useGameShellBridge } from "@/components/GameShell";
 import { useHUDSync } from "@/components/hud/useHUDSync";
 import { SoundManager } from "@/managers/SoundManager";
-import { ResultScreen } from "../ui/ResultScreen";
+import { GameResultBoard } from "@/components/ui/GameResultBoard";
 import { lerp, clamp } from "@/utils/math";
 import { RLGLDoll, RLGLGuard, RLGLContestant } from "@/components/r3f/models";
 import { useGameStore } from "@/store/gameStore";
@@ -1478,12 +1478,31 @@ const GlassBridge: React.FC<GameProps> = ({ onExit, onComplete }) => {
       {uiPhase === "intro" && <IntroScreen onStart={startGame} />}
 
       {(uiPhase === "gameover" || uiPhase === "victory") && (
-        <ResultScreen 
-          outcome={uiPhase === "victory" ? "victory" : "eliminated"} 
-          statLine={uiPhase === "victory" ? `SCORE: ${finalScore.toLocaleString()}` : `SCORE: ${finalScore.toLocaleString()} (PANEL ${finalRow})`} 
-          prize={uiPhase === "victory" ? 45600000000 : undefined}
-          onTryAgain={restartGame} 
-          onMenu={onExit ?? (() => {})} 
+        <GameResultBoard
+          gameTitle="Glass Bridge"
+          gameSubtitle="ROUND 5 — GLASS STEPPING STONES"
+          score={finalScore}
+          statLabel={uiPhase === "victory" ? "PANELS CROSSED" : "PANEL REACHED"}
+          statValue={`${uiPhase === "victory" ? TOTAL_ROWS : finalRow} / ${TOTAL_ROWS}`}
+          rows={[
+            {
+              participantNumber: 456,
+              name: "PLAYER",
+              outcome: uiPhase === "victory" ? "survived" : "eliminated",
+              detail: uiPhase === "victory"
+                ? `Crossed all ${TOTAL_ROWS} panels`
+                : `Fell at panel ${finalRow} of ${TOTAL_ROWS}`,
+              isPlayer: true,
+            },
+            { participantNumber: 17, name: "PARTICIPANT 017", outcome: uiPhase === "victory" ? "survived" : "eliminated" },
+            { participantNumber: 67, name: "PARTICIPANT 067", outcome: "eliminated" },
+            { participantNumber: 101, name: "PARTICIPANT 101", outcome: "eliminated" },
+            { participantNumber: 199, name: "PARTICIPANT 199", outcome: finalRow >= 10 ? "survived" : "eliminated" },
+            { participantNumber: 212, name: "PARTICIPANT 212", outcome: "eliminated" },
+            { participantNumber: 240, name: "PARTICIPANT 240", outcome: finalRow >= 14 ? "survived" : "eliminated" },
+          ]}
+          onRestart={restartGame}
+          onMenu={onExit ?? (() => {})}
         />
       )}
 
