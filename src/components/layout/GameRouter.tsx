@@ -30,10 +30,13 @@ export default function GameRouter() {
   // Stable ref — prevents duplicate event listener accumulation on shell mounts
   const handleExit = useCallback(() => setActiveGame("menu"), [setActiveGame]);
 
-  // BUG FIX: handleComplete was referenced in JSX but never defined, causing a runtime
-  // crash on every game victory. Now defined as a stable callback that returns the player
-  // to the menu after a win — extend this with leaderboard / session-history calls as needed.
-  const handleComplete = useCallback(() => setActiveGame("menu"), [setActiveGame]);
+  // BUG FIX: handleComplete was previously navigating away immediately, which unmounted the game
+  // before the GameResultBoard could be shown. Now it just records the completion in the session history.
+  // The GameResultBoard handles navigating back to the menu when the user clicks the "MENU" button.
+  const recordGameCompletion = useGameStore((s) => s.recordGameCompletion);
+  const handleComplete = useCallback((score: number, outcome: "victory" | "eliminated") => {
+    recordGameCompletion({ gameId: activeGame, score, outcome, timestamp: Date.now() });
+  }, [activeGame, recordGameCompletion]);
 
   const [transitionState, setTransitionState] = useState("idle");
   const prevGameRef = useRef(activeGame);
