@@ -342,6 +342,7 @@ function Scene({ onGameOver, onHudUpdate, pausedRef, inputRef, resetSignal, roun
   const shotLineRef = useRef<THREE.Line>(null);
   const shotTimerRef = useRef<number>(0);
   const greenTimerRef = useRef(0); // how long we've been in green light
+  const redLightCallFiredRef = useRef(false); // prevents double-play per cycle
 
   const handleDollSongEnd = useCallback(() => {
     if (lightPhaseRef.current === LightPhase.GREEN && gamePhaseRef.current === GamePhase.PLAYING) {
@@ -501,6 +502,14 @@ function Scene({ onGameOver, onHudUpdate, pausedRef, inputRef, resetSignal, roun
     if (lp === LightPhase.WARNING) {
       turnTRef.current += dt / TURN_DURATION;
       dollRotationRef.current = THREE.MathUtils.lerp(0, Math.PI, turnTRef.current);
+
+      // Fire "Red Light" voice exactly 10ms before the doll finishes turning
+      const timeRemainingMs = (1 - turnTRef.current) * TURN_DURATION * 1000;
+      if (!redLightCallFiredRef.current && timeRemainingMs <= 10) {
+        redLightCallFiredRef.current = true;
+        sm.play("red_light_call");
+      }
+
       if (turnTRef.current >= 1) {
         turnTRef.current = 1;
         lightPhaseRef.current = LightPhase.RED;
@@ -520,6 +529,7 @@ function Scene({ onGameOver, onHudUpdate, pausedRef, inputRef, resetSignal, roun
         redTimerRef.current   = 0;
         graceTimerRef.current = 0;
         greenTimerRef.current = 0;
+        redLightCallFiredRef.current = false; // reset for next cycle
         dollRotationRef.current = 0;
         sm.stopLoop("heartbeat" as any, 400);
         sm.stopLoop("scan_tone" as any, 300);
@@ -531,6 +541,7 @@ function Scene({ onGameOver, onHudUpdate, pausedRef, inputRef, resetSignal, roun
       // Force transition to warning if green light has lasted too long
       if (greenTimerRef.current >= GREEN_DURATION_MAX) {
         greenTimerRef.current = 0;
+        redLightCallFiredRef.current = false; // reset for the new warning cycle
         lightPhaseRef.current = LightPhase.WARNING;
         turnTRef.current = 0;
         MusicManager.getInstance().stop(0); // cut song short
@@ -891,7 +902,8 @@ export default function RedLightGreenLight3D({ onExit, onComplete }: RLGLProps) 
     sm.preload([
       "player_step", "player_jump", "player_land",
       "player_eliminated", "player_victory",
-      "heartbeat", "shatter", "crowd_gasp", "crowd_cheer", "countdown_beep", "countdown_go", "scan_tone"
+      "heartbeat", "shatter", "crowd_gasp", "crowd_cheer",
+      "countdown_beep", "countdown_go", "scan_tone", "red_light_call",
     ] as any[]);
     
     return () => {
